@@ -10,8 +10,9 @@
 :root{--bg:#080c18;--panel:#111a2d;--line:#2b3b5b;--blue:#70a7ff;--gold:#ffdb70}
 body{margin:0;background:var(--bg);color:#f5f7ff;font:15px Arial,sans-serif;overflow:hidden}
 button,input{font:inherit;border-radius:12px;border:1px solid var(--line);padding:12px;background:#0b1222;color:white}
-button{font-weight:bold;cursor:pointer;touch-action:manipulation}
+button{font-weight:bold;cursor:pointer;touch-action:none}
 button.primary{background:var(--blue);color:#07101e;border:0}
+button:disabled{opacity:.5}
 #menu{position:fixed;z-index:10;inset:0;display:grid;place-items:center;padding:16px;overflow:auto;background:radial-gradient(ellipse at top,#1b3764,#080c18 70%)}
 .panel{width:min(570px,100%);padding:22px;border:1px solid var(--line);border-radius:23px;background:#111a2df2;box-shadow:0 20px 70px #0008}
 h1{font-size:clamp(28px,7vw,44px);margin:7px 0}
@@ -19,7 +20,7 @@ p{color:#b9c8e4;line-height:1.45}
 .small{font-size:12px;color:#a8b8d8}
 .field{display:grid;gap:7px;margin:12px 0}
 .field label{font-size:13px;color:#b9c8e4}
-input{width:100%;min-width:0}
+input{width:100%;min-width:0;touch-action:auto}
 .line{display:flex;gap:8px}.line>*{min-width:0}
 .line input{flex:1}
 .games{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
@@ -33,14 +34,14 @@ input{width:100%;min-width:0}
 #hud button{padding:9px;font-size:12px}
 #controls{display:none;position:fixed;z-index:4;bottom:14px;left:14px;right:14px;align-items:end;justify-content:space-between;pointer-events:none}
 .pad{display:grid;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(2,48px);gap:5px;pointer-events:auto}
-.pad button,.jump{background:#0b1427e8;border:1px solid #6c83b8}
+.pad button,.jump{background:#0b1427e8;border:1px solid #6c83b8;user-select:none;-webkit-user-select:none}
 .up{grid-column:2}.left{grid-column:1;grid-row:2}.down{grid-column:2;grid-row:2}.right{grid-column:3;grid-row:2}
 .jump{width:76px;height:76px;border-radius:50%;font-size:12px;pointer-events:auto}
-#lookHint{position:fixed;z-index:2;top:105px;left:50%;transform:translateX(-50%);color:white;background:#09101ebd;padding:7px 11px;border-radius:9px;font-size:12px;display:none;white-space:nowrap}
+#lookHint{position:fixed;z-index:2;top:105px;left:50%;transform:translateX(-50%);color:white;background:#09101ebd;padding:7px 11px;border-radius:9px;font-size:12px;display:none;white-space:nowrap;pointer-events:none}
 #overlay{position:fixed;z-index:8;inset:0;display:none;place-items:center;background:#050814c9;padding:18px}
 #overlay .panel{text-align:center}
-#toast{position:fixed;z-index:12;bottom:110px;left:50%;transform:translateX(-50%);background:#111a2d;border:1px solid var(--line);border-radius:12px;padding:11px 15px;display:none;max-width:90%;text-align:center}
-canvas{display:block;position:fixed;inset:0;z-index:0}
+#toast{position:fixed;z-index:12;bottom:110px;left:50%;transform:translateX(-50%);background:#111a2d;border:1px solid var(--line);border-radius:12px;padding:11px 15px;display:none;max-width:90%;text-align:center;pointer-events:none}
+canvas{display:block;position:fixed;inset:0;z-index:0;touch-action:none}
 @media(min-width:800px){#controls{opacity:.65}.panel{padding:28px}}
 </style>
 </head>
@@ -70,7 +71,7 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
    <div class="line"><input id="code" maxlength="5" placeholder="ABCDE"><button id="join">Войти</button></div>
   </div>
   <div id="message" class="small">Подключаемся к серверу…</div>
-  <p class="small">ПК: WASD или стрелки, пробел — прыжок. Телефон: экранные кнопки. Проводите пальцем по экрану, чтобы повернуть камеру.</p>
+  <p class="small">ПК: WASD или стрелки, пробел — прыжок. Телефон: экранные кнопки. Свайп по свободной области экрана поворачивает камеру.</p>
  </div>
 </div>
 
@@ -83,10 +84,13 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
  <div class="hudbox">
   <button id="copy">Код</button>
   <button id="start" class="primary">Начать</button>
+  <button id="world">В мир</button>
   <button id="exit">Выйти</button>
  </div>
 </div>
-<div id="lookHint">Проведи пальцем по экрану, чтобы повернуть камеру</div>
+
+<div id="lookHint">Свайпай по экрану, чтобы повернуть камеру</div>
+
 <div id="controls">
  <div class="pad">
   <button class="up" data-key="forward">▲</button>
@@ -96,22 +100,23 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
  </div>
  <button id="jump" class="jump">ПРЫЖОК</button>
 </div>
+
 <div id="overlay">
  <div class="panel">
   <h1 id="resultTitle">Раунд окончен</h1>
   <p id="resultText"></p>
-  <button id="again" class="primary">В лобби</button>
+  <button id="again" class="primary">В мир</button>
  </div>
 </div>
 <div id="toast"></div>
 
 <script src="/socket.io/socket.io.js"></script>
-<!-- Используем версию с поддержкой обычного script и глобального THREE -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script>
 (()=>{
 "use strict";
 const $=id=>document.getElementById(id);
+
 const GAME_NAMES={
  parkour:"3D Паркур",
  redlight:"Красный свет",
@@ -129,19 +134,22 @@ let goal=null,lava=null;
 let started=false,alive=true,finished=false;
 let velocityY=0,onGround=true,yaw=0;
 let keys={forward:false,back:false,left:false,right:false};
-let lastSend=0,redTimer=0,greenLight=true,touchLook=null;
+let lastSend=0,redTimer=0,greenLight=true;
 let toastTimeout=null,animationStarted=false;
+let lookPointers=new Map();
 
 function setMessage(t){$("message").textContent=t}
+
 function toast(t){
  $("toast").textContent=t;
  $("toast").style.display="block";
  clearTimeout(toastTimeout);
  toastTimeout=setTimeout(()=>$("toast").style.display="none",2200);
 }
+
 function safeText(s){
  return String(s).replace(/[&<>"']/g,c=>({
- "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
  }[c]));
 }
 
@@ -150,7 +158,9 @@ function initSocket(){
   setMessage("Не загрузился Socket.IO. Проверь сервер Render.");
   return;
  }
+
  socket=io();
+
  socket.on("connect",()=>setMessage("Сервер подключён. Можно создавать комнату."));
  socket.on("connect_error",()=>setMessage("Нет связи с сервером. Проверь server.js на Render."));
  socket.on("disconnect",()=>toast("Соединение с сервером потеряно."));
@@ -161,11 +171,16 @@ function initSocket(){
   chosen=data.game;
   isHost=data.hostId===socket.id;
   applyRoom(data);
-  if(data.status==="playing"&&(!started||previousStatus!=="playing"))startGame(data.game);
+
+  if(data.status==="playing"&&(!started||previousStatus!=="playing")){
+   startGame(data.game);
+  }
   if(data.status==="lobby"&&started)showLobby();
  });
+
  socket.on("game:started",data=>startGame(data.game));
  socket.on("player:moved",data=>updateRemote(data));
+
  socket.on("game:event",event=>{
   const p=room?.players.find(x=>x.id===event.playerId);
   if(event.type==="finished")toast((p?.name||"Игрок")+" добрался до финиша!");
@@ -177,6 +192,7 @@ document.querySelectorAll("[data-game]").forEach(button=>{
  button.addEventListener("click",()=>{
   chosen=button.dataset.game;
   document.querySelectorAll("[data-game]").forEach(b=>b.classList.toggle("active",b===button));
+
   if(room&&isHost&&socket){
    socket.emit("game:select",{game:chosen},r=>{
     if(r&&!r.ok)toast(r.error||"Не удалось выбрать игру");
@@ -190,44 +206,85 @@ $("create").onclick=()=>{
   setMessage("Нет соединения с сервером. Обнови страницу и проверь Render.");
   return;
  }
+
  socket.emit("room:create",{name:$("name").value,game:chosen},r=>{
-  if(!r||!r.ok){setMessage(r?.error||"Не удалось создать комнату");return}
+  if(!r||!r.ok){
+   setMessage(r?.error||"Не удалось создать комнату");
+   return;
+  }
   roomCode=r.code;
   isHost=true;
   enterRoom();
  });
 };
+
 $("join").onclick=()=>{
  if(!socket||!socket.connected){
   setMessage("Нет соединения с сервером. Обнови страницу и проверь Render.");
   return;
  }
- socket.emit("room:join",{name:$("name").value,code:$("code").value.trim().toUpperCase()},r=>{
-  if(!r||!r.ok){setMessage(r?.error||"Не удалось войти");return}
+
+ socket.emit("room:join",{
+  name:$("name").value,
+  code:$("code").value.trim().toUpperCase()
+ },r=>{
+  if(!r||!r.ok){
+   setMessage(r?.error||"Не удалось войти");
+   return;
+  }
   roomCode=r.code;
   isHost=!!r.isHost;
   enterRoom();
  });
 };
+
 $("copy").onclick=async()=>{
- try{await navigator.clipboard.writeText(roomCode);toast("Код скопирован: "+roomCode)}
- catch(e){toast("Код комнаты: "+roomCode)}
+ try{
+  await navigator.clipboard.writeText(roomCode);
+  toast("Код скопирован: "+roomCode);
+ }catch(e){
+  toast("Код комнаты: "+roomCode);
+ }
 };
+
 $("start").onclick=()=>{
- if(socket)socket.emit("game:start",{},r=>{if(r&&!r.ok)toast(r.error||"Не удалось начать")});
+ if(socket){
+  socket.emit("game:start",{},r=>{
+   if(r&&!r.ok)toast(r.error||"Не удалось начать");
+  });
+ }
 };
-$("exit").onclick=()=>location.reload();
-$("again").onclick=()=>{
+
+// Возврат в мир ожидания без перезагрузки страницы.
+function returnToWorld(){
+ started=false;
+ alive=true;
+ finished=false;
+ velocityY=0;
+ onGround=true;
  $("overlay").style.display="none";
- if(isHost&&socket)socket.emit("game:start",{});
- else toast("Жди, пока создатель запустит новый раунд");
-};
+ $("menu").style.display="none";
+ $("hud").style.display="flex";
+ $("controls").style.display="flex";
+ $("lookHint").style.display="block";
+
+ if(scene){
+  buildWorld(chosen);
+  syncRemotes(room?.players||[]);
+ }
+
+ $("status").textContent="Лобби — можно начать новый раунд";
+ if(room)applyRoom(room);
+}
+
+$("world").onclick=returnToWorld;
+$("again").onclick=returnToWorld;
+$("exit").onclick=()=>location.reload();
 
 function enterRoom(){
  try{
-  // Сначала проверяем графику. Меню пока остаётся видимым.
+  if(typeof THREE==="undefined")throw new Error("Three.js не загрузился");
   if(!renderer)init3D();
-
   if(!renderer||!scene||!camera)throw new Error("3D-сцена не создалась");
 
   $("menu").style.display="none";
@@ -235,6 +292,7 @@ function enterRoom(){
   $("controls").style.display="flex";
   $("lookHint").style.display="block";
   $("roomLabel").textContent="Комната "+roomCode;
+
   if(room)applyRoom(room);
  }catch(err){
   console.error("Ошибка запуска 3D:",err);
@@ -242,68 +300,96 @@ function enterRoom(){
   $("hud").style.display="none";
   $("controls").style.display="none";
   $("lookHint").style.display="none";
-  setMessage("Ошибка 3D: "+(err?.message||err)+". Попробуй открыть сайт в Chrome и обновить страницу.");
+  setMessage("Ошибка 3D: "+(err?.message||err)+". Обнови страницу и попробуй снова.");
  }
 }
 
 function applyRoom(data){
  if(!data)return;
+
  $("roomLabel").textContent="Комната "+data.code+" • "+(GAME_NAMES[data.game]||data.game);
  $("status").textContent=data.status==="playing"?"РАУНД ИДЁТ":"Лобби — ждём старт";
  $("start").style.display=data.hostId===socket?.id?"inline-block":"none";
  $("start").textContent=data.status==="playing"?"Перезапустить":"Начать";
+
  $("players").innerHTML=data.players.map(p=>
-  (p.id===data.hostId?"👑 ":"")+safeText(p.name)+(p.finished?" 🏆":(!p.alive?" ❌":""))
+  (p.id===data.hostId?"👑 ":"")+safeText(p.name)+
+  (p.finished?" 🏆":(!p.alive?" ❌":""))
  ).join("<br>");
+
  if(scene)syncRemotes(data.players);
 }
 
 function material(color,roughness=.82){
  return new THREE.MeshStandardMaterial({color,roughness});
 }
+
 function addBox(x,y,z,sx,sy,sz,color,solid=true){
- const mesh=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),material(color));
+ const mesh=new THREE.Mesh(
+  new THREE.BoxGeometry(sx,sy,sz),
+  material(color)
+ );
  mesh.position.set(x,y,z);
  mesh.castShadow=true;
  mesh.receiveShadow=true;
  scene.add(mesh);
  worldMeshes.push(mesh);
+
  if(solid)platforms.push({x,y,z,sx,sy,sz,mesh});
  return mesh;
 }
+
 function makeAvatar(color){
  const group=new THREE.Group();
- const body=new THREE.Mesh(new THREE.BoxGeometry(.72,.85,.42),material(color));
+
+ const body=new THREE.Mesh(
+  new THREE.BoxGeometry(.72,.85,.42),
+  material(color)
+ );
  body.position.y=1;
  body.castShadow=true;
  group.add(body);
- const head=new THREE.Mesh(new THREE.BoxGeometry(.53,.48,.5),material(0xffd2a6));
+
+ const head=new THREE.Mesh(
+  new THREE.BoxGeometry(.53,.48,.5),
+  material(0xffd2a6)
+ );
  head.position.y=1.68;
  head.castShadow=true;
  group.add(head);
+
  const legs=material(0x202b45);
+
  for(const x of [-.2,.2]){
-  const leg=new THREE.Mesh(new THREE.BoxGeometry(.23,.5,.25),legs);
+  const leg=new THREE.Mesh(
+   new THREE.BoxGeometry(.23,.5,.25),
+   legs
+  );
   leg.position.set(x,.4,0);
   group.add(leg);
  }
+
  return group;
 }
 
 function init3D(){
  if(typeof THREE==="undefined")throw new Error("Three.js не загрузился");
+
  scene=new THREE.Scene();
  scene.background=new THREE.Color(0x87b6e8);
  scene.fog=new THREE.Fog(0x87b6e8,45,110);
+
  camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.1,300);
+
  renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));
  renderer.setSize(innerWidth,innerHeight);
  renderer.domElement.style.zIndex="0";
- renderer.domElement.style.pointerEvents="auto";
+ renderer.domElement.style.touchAction="none";
  document.body.appendChild(renderer.domElement);
 
  scene.add(new THREE.HemisphereLight(0xffffff,0x58647b,2));
+
  const sun=new THREE.DirectionalLight(0xffffff,2);
  sun.position.set(-12,20,10);
  scene.add(sun);
@@ -312,6 +398,7 @@ function init3D(){
  playerBody=makeAvatar(0x58a6ff);
  player.add(playerBody);
  scene.add(player);
+
  clock=new THREE.Clock();
  buildWorld(chosen);
 
@@ -322,22 +409,49 @@ function init3D(){
   renderer.setSize(innerWidth,innerHeight);
  });
 
- renderer.domElement.addEventListener("pointerdown",e=>{
-  if(innerWidth>800&&e.button===0)renderer.domElement.requestPointerLock?.();
+ // ПК: мышь поворачивает камеру.
+ renderer.domElement.addEventListener("click",e=>{
+  if(innerWidth>800&&e.button===0){
+   renderer.domElement.requestPointerLock?.();
+  }
  });
+
  document.addEventListener("mousemove",e=>{
-  if(document.pointerLockElement===renderer.domElement)yaw-=e.movementX*.0025;
+  if(document.pointerLockElement===renderer.domElement){
+   yaw-=e.movementX*.0025;
+  }
  });
- renderer.domElement.addEventListener("touchstart",e=>{
-  if(e.touches.length===1)touchLook={x:e.touches[0].clientX,y:e.touches[0].clientY};
- },{passive:true});
- renderer.domElement.addEventListener("touchmove",e=>{
-  if(!touchLook||e.touches.length!==1)return;
-  const t=e.touches[0];
-  yaw-=(t.clientX-touchLook.x)*.008;
-  touchLook={x:t.clientX,y:t.clientY};
- },{passive:true});
- renderer.domElement.addEventListener("touchend",()=>touchLook=null,{passive:true});
+
+ // Телефон: отдельный указатель для поворота камеры.
+ // Благодаря pointerId палец на стрелке не сбивает свайп другим пальцем.
+ renderer.domElement.addEventListener("pointerdown",e=>{
+  if(e.pointerType!=="touch")return;
+
+  lookPointers.set(e.pointerId,{
+   x:e.clientX,
+   y:e.clientY
+  });
+
+  try{renderer.domElement.setPointerCapture(e.pointerId)}catch(_){}
+ });
+
+ renderer.domElement.addEventListener("pointermove",e=>{
+  if(e.pointerType!=="touch")return;
+  const last=lookPointers.get(e.pointerId);
+  if(!last)return;
+
+  const dx=e.clientX-last.x;
+  yaw-=dx*.008;
+
+  lookPointers.set(e.pointerId,{
+   x:e.clientX,
+   y:e.clientY
+  });
+ });
+
+ const endLook=e=>lookPointers.delete(e.pointerId);
+ renderer.domElement.addEventListener("pointerup",endLook);
+ renderer.domElement.addEventListener("pointercancel",endLook);
 
  if(!animationStarted){
   animationStarted=true;
@@ -351,44 +465,77 @@ function clearWorld(){
  platforms=[];
  hazards=[];
  goal=null;
- if(lava){scene.remove(lava);lava=null}
+
+ if(lava){
+  scene.remove(lava);
+  lava=null;
+ }
 }
+
 function buildWorld(game){
  if(!scene)return;
  clearWorld();
+
  addBox(0,-7,-15,150,1,150,0x263248,true);
  addBox(0,-.15,4,9,.5,9,0x64748b,true);
 
  if(game==="parkour"){
   for(let i=0;i<12;i++){
    const x=i%2===0?-2:2;
-   addBox(x,.25+i*.16,-1-i*2.9,3.3,.5,2.5,[0x48bfe3,0x6c8cff,0x9a83ff][i%3]);
+   addBox(
+    x,.25+i*.16,-1-i*2.9,
+    3.3,.5,2.5,
+    [0x48bfe3,0x6c8cff,0x9a83ff][i%3]
+   );
   }
  }else if(game==="redlight"){
-  for(let i=0;i<13;i++)addBox(0,.05,-1-i*2.7,7,.3,2.4,i%2?0x5f7796:0x89a6c6);
+  for(let i=0;i<13;i++){
+   addBox(0,.05,-1-i*2.7,7,.3,2.4,i%2?0x5f7796:0x89a6c6);
+  }
  }else if(game==="tiles"){
   for(let i=0;i<11;i++){
    for(let j=0;j<3;j++){
-    const x=(j-1)*2,z=-1-i*2.8,missing=Math.random()<.16;
-    const tile=addBox(x,.05,z,1.8,.3,2.5,missing?0x8b3648:0x49a9ff,!missing);
+    const x=(j-1)*2;
+    const z=-1-i*2.8;
+    const missing=Math.random()<.16;
+
+    const tile=addBox(
+     x,.05,z,1.8,.3,2.5,
+     missing?0x8b3648:0x49a9ff,
+     !missing
+    );
+
     if(missing)tile.visible=false;
     else hazards.push({type:"tile",mesh:tile,used:false,at:0});
    }
   }
  }else if(game==="lava"){
-  for(let i=0;i<13;i++)addBox(i%2?1.8:-1.8,.25+i*.08,-1-i*2.8,3.2,.4,2.5,0xe5a04b);
-  lava=new THREE.Mesh(new THREE.BoxGeometry(45,.5,75),material(0xff3c2f,.4));
+  for(let i=0;i<13;i++){
+   addBox(i%2?1.8:-1.8,.25+i*.08,-1-i*2.8,3.2,.4,2.5,0xe5a04b);
+  }
+
+  lava=new THREE.Mesh(
+   new THREE.BoxGeometry(45,.5,75),
+   material(0xff3c2f,.4)
+  );
   lava.position.set(0,-3,-12);
   scene.add(lava);
  }else if(game==="obstacles"){
   for(let i=0;i<12;i++){
    const z=-1-i*2.9;
    addBox(0,.05,z,7,.3,2.5,0x7c91b1);
-   const bar=addBox(i%2?1.4:-1.4,1.15,z,1.3,1.7,.65,0xf16b7d,false);
+
+   const bar=addBox(
+    i%2?1.4:-1.4,1.15,z,
+    1.3,1.7,.65,0xf16b7d,false
+   );
+
    hazards.push({type:"bar",mesh:bar,z});
   }
  }
+
  goal=addBox(0,.2,-37,9,.5,4,0x35d486,false);
+
  player.position.set(0,.25,4);
  velocityY=0;
  onGround=true;
@@ -402,64 +549,105 @@ function showLobby(){
  started=false;
  $("overlay").style.display="none";
  $("status").textContent="Лобби — ждём старт";
- if(scene){buildWorld(chosen);syncRemotes(room?.players||[])}
+
+ if(scene){
+  buildWorld(chosen);
+  syncRemotes(room?.players||[]);
+ }
 }
+
 function startGame(game){
  chosen=VALID_GAMES.includes(game)?game:"parkour";
  if(!scene)return;
+
  started=true;
  alive=true;
  finished=false;
  buildWorld(chosen);
+
  $("overlay").style.display="none";
  $("status").textContent="ИГРА: "+GAME_NAMES[chosen];
  toast("Раунд начался! Доберись до финиша!");
 }
+
 function syncRemotes(players){
  if(!scene)return;
- const ids=new Set(players.filter(p=>p.id!==socket?.id).map(p=>p.id));
+
+ const ids=new Set(
+  players.filter(p=>p.id!==socket?.id).map(p=>p.id)
+ );
+
  for(const [id,mesh] of remotes){
-  if(!ids.has(id)){scene.remove(mesh);remotes.delete(id)}
+  if(!ids.has(id)){
+   scene.remove(mesh);
+   remotes.delete(id);
+  }
  }
+
  for(const p of players){
   if(p.id===socket?.id)continue;
+
   if(!remotes.has(p.id)){
-   const mesh=makeAvatar(Number.parseInt(String(p.color||"#ffbb55").slice(1),16)||0xffbb55);
+   const color=Number.parseInt(String(p.color||"#ffbb55").slice(1),16)||0xffbb55;
+   const mesh=makeAvatar(color);
    scene.add(mesh);
    remotes.set(p.id,mesh);
   }
+
   updateRemote(p);
  }
 }
+
 function updateRemote(p){
  const mesh=remotes.get(p.id);
  if(!mesh)return;
+
  mesh.position.set(p.x,p.y,p.z);
  mesh.rotation.y=p.yaw||0;
  mesh.visible=p.alive!==false;
 }
+
 function finishRound(won,reason){
  if(!alive)return;
+
  alive=false;
  finished=won;
- socket.emit("game:event",{type:won?"finished":"eliminated",detail:reason||""});
- socket.emit("player:move",{x:player.position.x,y:player.position.y,z:player.position.z,yaw,alive,finished});
+
+ if(socket){
+  socket.emit("game:event",{
+   type:won?"finished":"eliminated",
+   detail:reason||""
+  });
+
+  socket.emit("player:move",{
+   x:player.position.x,
+   y:player.position.y,
+   z:player.position.z,
+   yaw,alive,finished
+  });
+ }
+
  $("resultTitle").textContent=won?"🏆 ПОБЕДА!":"💥 ТЫ ВЫБЫЛ";
- $("resultText").textContent=won?"Ты добрался до финиша!":"Ты проиграл: "+(reason||"попробуй ещё раз")+". Дождись нового раунда.";
+ $("resultText").textContent=won
+  ?"Ты добрался до финиша!"
+  :"Ты проиграл: "+(reason||"попробуй ещё раз")+". Вернись в мир или дождись нового раунда.";
+
  $("overlay").style.display="grid";
  $("status").textContent=won?"ФИНИШ!":"ВЫБЫЛ";
 }
+
 function jump(){
  if(started&&alive&&onGround){
   velocityY=8.2;
   onGround=false;
-  socket.emit("game:event",{type:"jump"});
+  if(socket)socket.emit("game:event",{type:"jump"});
  }
 }
 
 function animate(){
  requestAnimationFrame(animate);
  if(!renderer||!scene||!camera)return;
+
  try{
   const dt=Math.min(clock.getDelta(),.04);
   const time=clock.elapsedTime;
@@ -467,19 +655,30 @@ function animate(){
   if(started&&alive&&player){
    if(chosen==="redlight"){
     redTimer+=dt;
+
     if(redTimer>3.5){
      redTimer=0;
      greenLight=!greenLight;
      toast(greenLight?"🟢 ЗЕЛЁНЫЙ — БЕГИ!":"🔴 КРАСНЫЙ — СТОЙ!");
     }
-    $("status").textContent=greenLight?"🟢 ЗЕЛЁНЫЙ — БЕГИ":"🔴 КРАСНЫЙ — СТОЙ";
-    if(!greenLight&&(keys.forward||keys.back||keys.left||keys.right))finishRound(false,"движение на красный свет");
+
+    $("status").textContent=greenLight
+     ?"🟢 ЗЕЛЁНЫЙ — БЕГИ"
+     :"🔴 КРАСНЫЙ — СТОЙ";
+
+    if(!greenLight&&(keys.forward||keys.back||keys.left||keys.right)){
+     finishRound(false,"движение на красный свет");
+    }
    }
 
+   // Движение относительно направления камеры.
    const dx0=(keys.right?1:0)-(keys.left?1:0);
    const dz0=(keys.back?1:0)-(keys.forward?1:0);
    const length=Math.hypot(dx0,dz0)||1;
-   const dx=dx0/length,dz=dz0/length,speed=6;
+   const dx=dx0/length;
+   const dz=dz0/length;
+   const speed=6;
+
    const moveX=(dx*Math.cos(yaw)+dz*Math.sin(yaw))*speed*dt;
    const moveZ=(-dx*Math.sin(yaw)+dz*Math.cos(yaw))*speed*dt;
 
@@ -487,6 +686,7 @@ function animate(){
     player.position.x+=moveX;
     player.position.z+=moveZ;
    }
+
    player.position.x=Math.max(-7,Math.min(7,player.position.x));
 
    const oldY=player.position.y;
@@ -496,9 +696,11 @@ function animate(){
 
    for(const p of platforms){
     if(!p.mesh.visible)continue;
+
     const withinX=Math.abs(player.position.x-p.x)<p.sx/2+.24;
     const withinZ=Math.abs(player.position.z-p.z)<p.sz/2+.24;
     const top=p.y+p.sy/2;
+
     if(withinX&&withinZ&&velocityY<=0&&oldY>=top-.06&&player.position.y<=top+.35){
      player.position.y=top;
      velocityY=0;
@@ -509,11 +711,17 @@ function animate(){
    if(chosen==="tiles"){
     for(const h of hazards){
      if(h.used)continue;
-     if(Math.abs(player.position.x-h.mesh.position.x)<.65&&Math.abs(player.position.z-h.mesh.position.z)<.75&&onGround){
+
+     if(
+      Math.abs(player.position.x-h.mesh.position.x)<.65&&
+      Math.abs(player.position.z-h.mesh.position.z)<.75&&
+      onGround
+     ){
       h.used=true;
       h.at=time;
      }
     }
+
     for(const h of hazards){
      if(h.used&&time-h.at>1&&h.mesh.visible){
       h.mesh.visible=false;
@@ -525,32 +733,58 @@ function animate(){
 
    if(chosen==="obstacles"){
     for(const h of hazards){
-     if(Math.abs(player.position.z-h.z)<.45&&Math.abs(player.position.x-h.mesh.position.x)<.85&&player.position.y<1.8){
+     if(
+      Math.abs(player.position.z-h.z)<.45&&
+      Math.abs(player.position.x-h.mesh.position.x)<.85&&
+      player.position.y<1.8
+     ){
       finishRound(false,"столкновение с препятствием");
       break;
      }
     }
    }
+
    if(chosen==="lava"&&lava){
     lava.position.y=Math.min(1,lava.position.y+dt*.12);
-    if(player.position.y<lava.position.y+.8&&player.position.z<2)finishRound(false,"лава догнала тебя");
+
+    if(player.position.y<lava.position.y+.8&&player.position.z<2){
+     finishRound(false,"лава догнала тебя");
+    }
    }
+
    if(player.position.y<-5)finishRound(false,"падение с платформы");
    if(player.position.z<-35)finishRound(true,"финиш");
 
    player.rotation.y=yaw;
-   if(time-lastSend>.06){
+
+   if(socket&&time-lastSend>.06){
     lastSend=time;
-    socket.volatile.emit("player:move",{x:player.position.x,y:player.position.y,z:player.position.z,yaw,alive,finished});
+    socket.volatile.emit("player:move",{
+     x:player.position.x,
+     y:player.position.y,
+     z:player.position.z,
+     yaw,alive,finished
+    });
    }
   }
 
   if(player){
-   const target=new THREE.Vector3(player.position.x,player.position.y+1.15,player.position.z);
-   const behind=new THREE.Vector3(Math.sin(yaw)*7,4,Math.cos(yaw)*7);
+   const target=new THREE.Vector3(
+    player.position.x,
+    player.position.y+1.15,
+    player.position.z
+   );
+
+   const behind=new THREE.Vector3(
+    Math.sin(yaw)*7,
+    4,
+    Math.cos(yaw)*7
+   );
+
    camera.position.lerp(target.clone().add(behind),.14);
    camera.lookAt(target);
   }
+
   renderer.render(scene,camera);
  }catch(err){
   console.error("Ошибка игрового цикла:",err);
@@ -564,25 +798,61 @@ function animate(){
  }
 }
 
+// Клавиатура ПК.
 document.addEventListener("keydown",e=>{
- const map={KeyW:"forward",ArrowUp:"forward",KeyS:"back",ArrowDown:"back",KeyA:"left",ArrowLeft:"left",KeyD:"right",ArrowRight:"right"};
- if(map[e.code]){keys[map[e.code]]=true;e.preventDefault()}
- if(e.code==="Space"){e.preventDefault();jump()}
+ const map={
+  KeyW:"forward",ArrowUp:"forward",
+  KeyS:"back",ArrowDown:"back",
+  KeyA:"left",ArrowLeft:"left",
+  KeyD:"right",ArrowRight:"right"
+ };
+
+ if(map[e.code]){
+  keys[map[e.code]]=true;
+  e.preventDefault();
+ }
+
+ if(e.code==="Space"){
+  e.preventDefault();
+  jump();
+ }
 });
+
 document.addEventListener("keyup",e=>{
- const map={KeyW:"forward",ArrowUp:"forward",KeyS:"back",ArrowDown:"back",KeyA:"left",ArrowLeft:"left",KeyD:"right",ArrowRight:"right"};
+ const map={
+  KeyW:"forward",ArrowUp:"forward",
+  KeyS:"back",ArrowDown:"back",
+  KeyA:"left",ArrowLeft:"left",
+  KeyD:"right",ArrowRight:"right"
+ };
+
  if(map[e.code])keys[map[e.code]]=false;
 });
+
+// Мобильные кнопки: удержание работает, даже если палец немного сместился.
 document.querySelectorAll("[data-key]").forEach(button=>{
  const key=button.dataset.key;
- const down=e=>{e.preventDefault();keys[key]=true};
- const up=e=>{e.preventDefault();keys[key]=false};
+
+ const down=e=>{
+  e.preventDefault();
+  keys[key]=true;
+  try{button.setPointerCapture(e.pointerId)}catch(_){}
+ };
+
+ const up=e=>{
+  e.preventDefault();
+  keys[key]=false;
+ };
+
  button.addEventListener("pointerdown",down);
  button.addEventListener("pointerup",up);
  button.addEventListener("pointercancel",up);
- button.addEventListener("pointerleave",up);
 });
-$("jump").addEventListener("pointerdown",e=>{e.preventDefault();jump()});
+
+$("jump").addEventListener("pointerdown",e=>{
+ e.preventDefault();
+ jump();
+});
 
 initSocket();
 })();
