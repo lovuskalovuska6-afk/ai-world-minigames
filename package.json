@@ -1,14 +1,16 @@
 
 {
-  "name": "ai-world-minigames",
+  "name": "ai-world-multiplayer",
   "version": "1.0.0",
-  "description": "AI World online mini games",
-  "main": "server.js",
+  "private": true,
   "scripts": {
     "start": "node server.js"
   },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "express": "^4.21.2",
-    "ws": "^8.18.0"
+    "socket.io": "^4.8.1"
   }
 }
