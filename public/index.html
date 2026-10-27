@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -315,37 +314,21 @@ function startLocal(withBots){
  }
 }
 
-/* Возврат на отдельную основную карту-хаб. */
+/*
+ * ИСПРАВЛЕНО:
+ * Обе кнопки возвращения открывают настоящую главную карту AI WORLD,
+ * а не создают отдельный локальный хаб внутри мини-игры.
+ */
 function returnToWorld(){
  resetKeys();
- velocityY=0;onGround=true;alive=true;finished=false;
+ velocityY=0;
+ onGround=true;
+ alive=true;
+ finished=false;
+ started=false;
+ hubMode=false;
  $("overlay").style.display="none";
-
- if(mode==="multi"&&room){
-  hubMode=false;
-  started=false;
-  $("menu").style.display="none";
-  $("hud").style.display="flex";
-  $("controls").style.display="flex";
-  $("lookHint").style.display="block";
-  if(scene)buildWorld(chosen);
-  $("status").textContent="Лобби — можно начать новый раунд";
-  applyRoom(room);
-  return;
- }
-
- localGame=true;
- room=null;
- roomCode="";
- hubMode=true;
- started=true;
- if(scene)buildHubWorld();
- makeBots(0);
- showGameUI();
- $("roomLabel").textContent="AI WORLD • ГЛАВНАЯ КАРТА";
- $("status").textContent="Ты на главной карте. Выбери игру и нажми «Играть».";
- updateStartButton();
- toast("Ты вернулся на главную карту!");
+ window.location.href="https://ai-world-game.onrender.com/";
 }
 $("world").onclick=returnToWorld;
 $("again").onclick=returnToWorld;
@@ -548,7 +531,6 @@ function buildWorld(game){
   }
  }
 
- // Широкий финиш соединяется с концом трассы.
  goal=addBox(0,.2,-41,10,.5,8,0x35d486,true);
 
  player.position.set(0,.02,3);
@@ -654,12 +636,6 @@ function jump(){
  }
 }
 
-/*
- * Коллизия по положению ног:
- * если игрок падает и его ноги оказались внутри блока,
- * ставим его на верхнюю поверхность этого блока.
- * При выборе нескольких блоков берём самую высокую подходящую поверхность.
- */
 function resolveGround(oldY,newX,newZ){
  if(velocityY>0)return null;
  let best=null;
@@ -810,7 +786,6 @@ function animate(){
    if(!hubMode&&alive)checkFinish();
    if(!hubMode&&alive&&player.position.y<-5)finishRound(false,"падение с платформы");
 
-   // Персонаж смотрит в направлении движения вперёд.
    player.rotation.y=yaw+Math.PI;
 
    if(socket&&!localGame&&socket.connected&&time-lastSend>.06){
