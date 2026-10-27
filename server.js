@@ -9,11 +9,26 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
+const MAX_PLAYERS = 12;
+
 const rooms = new Map();
 
+const ALLOWED_GAMES = [
+  "parkour",
+  "redlight",
+  "tiles",
+  "lava",
+  "obstacles"
+];
+
 app.use(express.static("public"));
+
 app.get("/health", (req, res) => {
-  res.json({ ok: true, rooms: rooms.size });
+  res.json({
+    ok: true,
+    rooms: rooms.size,
+    publicRooms: getPublicRooms().length
+  });
 });
 
 function makeCode() {
@@ -56,13 +71,42 @@ function roomData(room) {
     code: room.code,
     game: room.game,
     status: room.status,
+    isPublic: room.isPublic,
     hostId: room.hostId,
+    hostName: room.players.get(room.hostId)?.name || "Игрок",
+    maxPlayers: MAX_PLAYERS,
     players: [...room.players.values()]
   };
 }
 
+function getPublicRooms() {
+  return [...rooms.values()]
+    .filter(room => room.isPublic)
+    .map(room => ({
+      code: room.code,
+      game: room.game,
+      status: room.status,
+      hostName:
+        room.players.get(room.hostId)?.name || "Игрок",
+      playerCount: room.players.size,
+      maxPlayers: MAX_PLAYERS
+    }))
+    .sort((a, b) => {
+      if (a.status !== b.status) {
+        return a.status === "lobby" ? -1 : 1;
+      }
+
+      return b.playerCount - a.playerCount;
+    });
+}
+
+function broadcastPublicRooms() {
+  io.emit("rooms:list:update", getPublicRooms());
+}
+
 function updateRoom(room) {
   io.to(room.code).emit("room:update", roomData(room));
+  broadcastPublicRooms();
 }
 
 function leaveRoom(socket) {
@@ -70,6 +114,7 @@ function leaveRoom(socket) {
   if (!code) return;
 
   const room = rooms.get(code);
+
   socket.leave(code);
   socket.data.roomCode = null;
 
@@ -79,6 +124,7 @@ function leaveRoom(socket) {
 
   if (room.players.size === 0) {
     rooms.delete(code);
+    broadcastPublicRooms();
     return;
   }
 
@@ -89,27 +135,62 @@ function leaveRoom(socket) {
   updateRoom(room);
 }
 
+function joinRoom(socket, room, name, reply) {
+  if (room.players.size >= MAX_PLAYERS) {
+    return reply({
+      ok: false,
+      error: "В комнате максимум 12 игроков."
+    });
+  }
+
+  room.players.set(
+    socket.id,
+    makePlayer(socket, name)
+  );
+
+  socket.join(room.code);
+  socket.data.roomCode = room.code;
+
+  reply({
+    ok: true,
+    code: room.code,
+    isHost: room.hostId === socket.id,
+    room: roomData(room)
+  });
+
+  updateRoom(room);
+
+  if (room.status === "playing") {
+    socket.emit("game:started", {
+      game: room.game,
+      at: Date.now()
+    });
+  }
+}
+
 io.on("connection", socket => {
+  socket.on("rooms:list", (reply = () => {}) => {
+    reply({
+      ok: true,
+      rooms: getPublicRooms()
+    });
+  });
+
   socket.on("room:create", (data = {}, reply = () => {}) => {
     leaveRoom(socket);
 
-    const code = makeCode();
-    const allowedGames = [
-      "parkour",
-      "redlight",
-      "tiles",
-      "lava",
-      "obstacles"
-    ];
-
-    const game = allowedGames.includes(data.game)
+    const game = ALLOWED_GAMES.includes(data.game)
       ? data.game
       : "parkour";
+
+    const isPublic = data.isPublic === true;
+    const code = makeCode();
 
     const room = {
       code,
       game,
       status: "lobby",
+      isPublic,
       hostId: socket.id,
       players: new Map()
     };
@@ -120,16 +201,21 @@ io.on("connection", socket => {
     );
 
     rooms.set(code, room);
+
     socket.join(code);
     socket.data.roomCode = code;
 
-    reply({ ok: true, code, isHost: true });
+    reply({
+      ok: true,
+      code,
+      isHost: true,
+      isPublic
+    });
+
     updateRoom(room);
   });
 
   socket.on("room:join", (data = {}, reply = () => {}) => {
-    leaveRoom(socket);
-
     const code = String(data.code || "")
       .trim()
       .toUpperCase();
@@ -143,29 +229,50 @@ io.on("connection", socket => {
       });
     }
 
-    if (room.players.size >= 12) {
+    leaveRoom(socket);
+
+    const currentRoom = rooms.get(code);
+
+    if (!currentRoom) {
       return reply({
         ok: false,
-        error: "В комнате максимум 12 игроков."
+        error: "Комната больше не существует."
       });
     }
 
-    room.players.set(
-      socket.id,
-      makePlayer(socket, data.name)
-    );
-
-    socket.join(code);
-    socket.data.roomCode = code;
-
-    reply({
-      ok: true,
-      code,
-      isHost: room.hostId === socket.id
-    });
-
-    updateRoom(room);
+    joinRoom(socket, currentRoom, data.name, reply);
   });
+
+  socket.on(
+    "room:join-public",
+    (data = {}, reply = () => {}) => {
+      const code = String(data.code || "")
+        .trim()
+        .toUpperCase();
+
+      const room = rooms.get(code);
+
+      if (!room || !room.isPublic) {
+        return reply({
+          ok: false,
+          error: "Публичная комната больше недоступна."
+        });
+      }
+
+      leaveRoom(socket);
+
+      const currentRoom = rooms.get(code);
+
+      if (!currentRoom || !currentRoom.isPublic) {
+        return reply({
+          ok: false,
+          error: "Публичная комната больше недоступна."
+        });
+      }
+
+      joinRoom(socket, currentRoom, data.name, reply);
+    }
+  );
 
   socket.on("player:move", data => {
     const room = rooms.get(socket.data.roomCode);
@@ -205,7 +312,10 @@ io.on("connection", socket => {
     const room = rooms.get(socket.data.roomCode);
 
     if (!room) {
-      return reply({ ok: false, error: "Нет комнаты." });
+      return reply({
+        ok: false,
+        error: "Нет комнаты."
+      });
     }
 
     if (room.hostId !== socket.id) {
@@ -215,27 +325,22 @@ io.on("connection", socket => {
       });
     }
 
-    const allowed = [
-      "parkour",
-      "redlight",
-      "tiles",
-      "lava",
-      "obstacles"
-    ];
-
-    if (!allowed.includes(data.game)) {
-      return reply({ ok: false, error: "Неизвестная игра." });
+    if (!ALLOWED_GAMES.includes(data.game)) {
+      return reply({
+        ok: false,
+        error: "Неизвестная игра."
+      });
     }
 
     room.game = data.game;
     room.status = "lobby";
 
-    for (const p of room.players.values()) {
-      p.x = 0;
-      p.y = 1;
-      p.z = 4;
-      p.alive = true;
-      p.finished = false;
+    for (const player of room.players.values()) {
+      player.x = 0;
+      player.y = 1;
+      player.z = 4;
+      player.alive = true;
+      player.finished = false;
     }
 
     updateRoom(room);
@@ -246,7 +351,10 @@ io.on("connection", socket => {
     const room = rooms.get(socket.data.roomCode);
 
     if (!room) {
-      return reply({ ok: false, error: "Нет комнаты." });
+      return reply({
+        ok: false,
+        error: "Нет комнаты."
+      });
     }
 
     if (room.hostId !== socket.id) {
@@ -258,12 +366,12 @@ io.on("connection", socket => {
 
     room.status = "playing";
 
-    for (const p of room.players.values()) {
-      p.x = 0;
-      p.y = 1;
-      p.z = 4;
-      p.alive = true;
-      p.finished = false;
+    for (const player of room.players.values()) {
+      player.x = 0;
+      player.y = 1;
+      player.z = 4;
+      player.alive = true;
+      player.finished = false;
     }
 
     io.to(room.code).emit("game:started", {
@@ -301,5 +409,7 @@ io.on("connection", socket => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log("AI WORLD multiplayer server started on " + PORT);
+  console.log(
+    "AI WORLD multiplayer server started on " + PORT
+  );
 });
