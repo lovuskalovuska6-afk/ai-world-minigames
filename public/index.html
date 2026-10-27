@@ -1,0 +1,561 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>AI World — Мини-игры</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101322;color:white;font-family:Arial,sans-serif}
+button,input,select{font:inherit}
+button{background:#6557e8;color:white;border:0;border-radius:12px;padding:13px;cursor:pointer;font-weight:bold}
+button:disabled{opacity:.35}
+.screen{display:none;min-height:100dvh;padding:20px;max-width:850px;margin:auto}
+.screen.active{display:flex;flex-direction:column;gap:15px}
+h1,h2,h3,p{margin:5px 0}
+.muted{color:#aeb4d0}
+.card{background:#1b2036;border:1px solid #303753;border-radius:20px;padding:18px}
+.row{display:flex;gap:10px;align-items:center}
+.row>*{flex:1;min-width:0}
+input,select{width:100%;padding:12px;background:#111629;color:white;border:1px solid #39415f;border-radius:10px}
+.hero{font-size:clamp(35px,9vw,60px);font-weight:900}
+.bigbtn{font-size:18px;min-height:55px}
+#pit{height:210px;background:linear-gradient(#242c48,#080a13);border:3px solid #6872a5;border-radius:20px;display:flex;align-items:center;justify-content:center;text-align:center}
+#playerList{display:flex;gap:6px;flex-wrap:wrap}
+.playerTag{background:#343c5d;border-radius:20px;padding:8px 12px}
+.messages{height:130px;overflow:auto;background:#101426;border-radius:12px;padding:10px;font-size:14px}
+.messages div{margin:5px 0;overflow-wrap:anywhere}
+#gameCanvas{width:100%;height:min(55vh,500px);background:#151a2b;border-radius:18px;display:block;touch-action:none}
+#lightStatus{text-align:center;font-size:25px;font-weight:900}
+#joystick{width:120px;height:120px;background:#ffffff22;border:2px solid #ffffff66;border-radius:50%;position:relative;touch-action:none;flex-shrink:0}
+#knob{position:absolute;width:48px;height:48px;background:#c5caff;border-radius:50%;left:34px;top:34px;pointer-events:none}
+.small{font-size:12px}
+</style>
+</head>
+<body>
+
+<section id="home" class="screen active">
+  <div class="hero">🎮 MINI GAMES</div>
+  <p class="muted">Играй один или собирай игроков онлайн.</p>
+
+  <div class="card">
+    <label>Твоё имя</label>
+    <input id="name" maxlength="18" value="Игрок">
+    <label style="display:block;margin-top:14px">Мини-игра</label>
+    <select id="gameChoice">
+      <option value="redgreen">🔴 Красный свет, зелёный свет</option>
+      <option value="tiles">🟦 Падающие плитки</option>
+    </select>
+  </div>
+
+  <button class="bigbtn" id="soloBtn">👤 Играть в одиночку</button>
+  <button class="bigbtn" id="multiBtn">👥 Мультиплеер</button>
+  <button class="bigbtn" id="backToWorld" style="background:#248b70">
+    🌍 Вернуться в мир
+  </button>
+  <div id="connection" class="muted small">Подключение к серверу...</div>
+</section>
+
+<section id="lobby" class="screen">
+  <h1>🕳️ ЯМКА ОЖИДАНИЯ</h1>
+  <p class="muted">Собирай игроков перед началом раунда.</p>
+  <div id="pit">
+    <div>
+      <h2>МИНИМУМ 2 ИГРОКА</h2>
+      <p id="count">Игроков: 0 / 2</p>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Игроки в комнате</h3>
+    <div id="playerList"></div>
+  </div>
+  <button id="startBtn" disabled>🔒 Начать — нужно 2 игрока</button>
+  <div class="card">
+    <h3>💬 Чат комнаты</h3>
+    <div id="messages" class="messages"></div>
+    <form id="chatForm" class="row">
+      <input id="chatInput" placeholder="Написать сообщение..." maxlength="180">
+      <button>➤</button>
+    </form>
+  </div>
+  <button id="leaveBtn" style="background:#3a4059">← Назад</button>
+  <button class="backWorld" style="background:#248b70">🌍 Вернуться в мир</button>
+</section>
+
+<section id="game" class="screen">
+  <div class="row">
+    <h2 id="gameTitle">Мини-игра</h2>
+    <button id="exitGame" style="background:#3a4059">Выйти</button>
+  </div>
+  <div id="lightStatus">🟢 ЗЕЛЁНЫЙ СВЕТ</div>
+  <canvas id="gameCanvas" width="600" height="760"></canvas>
+  <div class="row">
+    <div id="joystick"><div id="knob"></div></div>
+    <p class="muted small">Двигай джойстик или используй WASD / стрелки.</p>
+  </div>
+  <div class="card">
+    <h3>💬 Чат игры</h3>
+    <div id="gameMessages" class="messages"></div>
+    <form id="gameChatForm" class="row">
+      <input id="gameChatInput" placeholder="Сообщение..." maxlength="180">
+      <button>➤</button>
+    </form>
+  </div>
+  <button class="backWorld" style="background:#248b70">🌍 Вернуться в мир</button>
+</section>
+
+<section id="result" class="screen">
+  <div class="hero" id="resultTitle">🏆 Победа!</div>
+  <p id="resultText">Раунд завершён.</p>
+  <button id="againBtn" class="bigbtn">Играть ещё</button>
+  <button id="menuBtn" style="background:#3a4059">В меню</button>
+  <button class="backWorld" style="background:#248b70">🌍 Вернуться в мир</button>
+</section>
+
+<script>
+const $=id=>document.getElementById(id);
+const screens=["home","lobby","game","result"];
+function show(id){
+  screens.forEach(s=>$(s).classList.toggle("active",s===id));
+}
+
+let socket,myId=null,mode="solo",currentGame="redgreen";
+let queuedPlayers=[],players=[],light="green";
+let x=.5,y=.92,alive=true,won=false,playing=false;
+let keys={},joy={x:0,y:0},lastMove=0,soloLastLight=Date.now()+4000;
+let tiles=[];
+
+function connect(){
+  const proto=location.protocol==="https:"?"wss:":"ws:";
+  socket=new WebSocket(proto+"//"+location.host);
+
+  socket.onopen=()=>{
+    $("connection").textContent="🟢 Сервер подключён";
+    send({type:"name",name:$("name").value});
+  };
+
+  socket.onclose=()=>{
+    $("connection").textContent="🔴 Соединение потеряно. Переподключение...";
+    setTimeout(connect,2500);
+  };
+
+  socket.onmessage=e=>{
+    let m;
+    try{m=JSON.parse(e.data)}catch{return}
+    handle(m);
+  };
+}
+
+function send(obj){
+  if(socket&&socket.readyState===WebSocket.OPEN)
+    socket.send(JSON.stringify(obj));
+}
+
+function handle(m){
+  if(m.type==="welcome")myId=m.id;
+
+  if(m.type==="lobby"){
+    queuedPlayers=m.players||[];
+    $("count").textContent="Игроков: "+m.count+" / 2";
+    $("playerList").innerHTML="";
+
+    queuedPlayers.forEach(p=>{
+      const el=document.createElement("span");
+      el.className="playerTag";
+      el.textContent=p.name+(p.id===myId?" (ты)":"");
+      $("playerList").appendChild(el);
+    });
+
+    const ok=m.count>=2;
+    $("startBtn").disabled=!ok;
+    $("startBtn").textContent=ok?"▶ Начать игру":"🔒 Начать — нужно 2 игрока";
+  }
+
+  if(m.type==="notice")alert(m.text);
+
+  if(m.type==="chat"){
+    addMessage("messages",m.name+": "+m.text);
+    addMessage("gameMessages",m.name+": "+m.text);
+  }
+
+  if(m.type==="gameStart"){
+    mode="multi";
+    currentGame=m.game;
+    x=.5;y=.92;alive=true;won=false;playing=true;
+    light=m.light||"green";
+    beginGame();
+  }
+
+  if(m.type==="light"){
+    light=m.light;
+    updateLight();
+  }
+
+  if(m.type==="gameState"){
+    players=m.players||[];
+    if(m.light)light=m.light;
+    updateLight();
+    draw();
+  }
+
+  if(m.type==="lost")finish(false,m.reason);
+  if(m.type==="won")finish(true,m.text);
+
+  if(m.type==="roundEnded"){
+    playing=false;
+    show("result");
+    $("resultTitle").textContent="🏁 Раунд завершён";
+    $("resultText").textContent="Раунд завершён. Можно сыграть ещё!";
+  }
+}
+
+function addMessage(id,text){
+  const box=$(id),d=document.createElement("div");
+  d.textContent=text;
+  box.appendChild(d);
+  box.scrollTop=box.scrollHeight;
+}
+
+function sendChat(id){
+  const text=$(id).value.trim();
+  if(!text)return;
+  send({type:"chat",text});
+  $(id).value="";
+}
+
+$("chatForm").onsubmit=e=>{
+  e.preventDefault();
+  sendChat("chatInput");
+};
+
+$("gameChatForm").onsubmit=e=>{
+  e.preventDefault();
+  sendChat("gameChatInput");
+};
+
+$("name").onchange=()=>send({type:"name",name:$("name").value});
+
+$("backToWorld").onclick=goToWorld;
+document.querySelectorAll(".backWorld").forEach(b=>b.onclick=goToWorld);
+
+function goToWorld(){
+  playing=false;
+  location.href="https://ai-world-game.onrender.com";
+}
+
+$("soloBtn").onclick=()=>{
+  mode="solo";
+  currentGame=$("gameChoice").value;
+  x=.5;y=.92;alive=true;won=false;playing=true;
+  light="green";
+  soloLastLight=Date.now()+4000;
+  beginGame();
+};
+
+$("multiBtn").onclick=()=>{
+  mode="multi";
+  currentGame=$("gameChoice").value;
+  $("messages").innerHTML="";
+  show("lobby");
+  send({type:"joinQueue"});
+};
+
+$("startBtn").onclick=()=>send({type:"start",game:currentGame});
+
+$("leaveBtn").onclick=()=>{
+  send({type:"leaveQueue"});
+  show("home");
+};
+
+$("exitGame").onclick=()=>{
+  playing=false;
+  if(mode==="multi")send({type:"backToLobby"});
+  show(mode==="multi"?"lobby":"home");
+};
+
+$("againBtn").onclick=()=>{
+  if(mode==="solo"){
+    x=.5;y=.92;alive=true;won=false;
+    light="green";
+    soloLastLight=Date.now()+4000;
+    beginGame();
+  }else{
+    send({type:"backToLobby"});
+    show("lobby");
+  }
+};
+
+$("menuBtn").onclick=()=>{
+  playing=false;
+  if(mode==="multi")send({type:"backToLobby"});
+  show("home");
+};
+
+function beginGame(){
+  show("game");
+  $("gameMessages").innerHTML="";
+  $("gameTitle").textContent=currentGame==="tiles"
+    ?"🟦 Падающие плитки":"🔴 Красный / зелёный";
+  $("lightStatus").style.display=currentGame==="redgreen"?"block":"none";
+
+  tiles=[];
+  if(currentGame==="tiles"){
+    for(let i=0;i<10;i++){
+      tiles.push({
+        x:.12+(i%3)*.36,
+        y:.15+Math.floor(i/3)*.19,
+        broken:false,
+        at:0
+      });
+    }
+  }
+
+  updateLight();
+  draw();
+}
+
+function updateLight(){
+  if(currentGame!=="redgreen")return;
+  $("lightStatus").textContent=light==="green"
+    ?"🟢 ЗЕЛЁНЫЙ СВЕТ":"🔴 КРАСНЫЙ СВЕТ — СТОЙ!";
+  $("lightStatus").style.color=light==="green"?"#65f59a":"#ff6464";
+}
+
+function finish(win,reason){
+  if(!playing)return;
+  playing=false;
+  alive=!win;
+  won=win;
+  show("result");
+  $("resultTitle").textContent=win?"🏆 ПОБЕДА!":"💥 ПОРАЖЕНИЕ";
+  $("resultText").textContent=reason||
+    (win?"Ты добрался до финиша!":"Попробуй ещё раз.");
+}
+
+function sendLost(reason){
+  if(!playing)return;
+  if(mode==="multi")send({type:"move",x,y,moving:false});
+  finish(false,reason);
+}
+
+function sendWin(){
+  if(!playing)return;
+  if(mode==="multi")send({type:"move",x,y,moving:false});
+  finish(true,"Ты добрался до финиша!");
+}
+
+const canvas=$("gameCanvas"),ctx=canvas.getContext("2d");
+
+function draw(){
+  ctx.clearRect(0,0,600,760);
+  ctx.fillStyle="#151a2b";
+  ctx.fillRect(0,0,600,760);
+
+  if(currentGame==="redgreen"){
+    ctx.fillStyle="#343a4e";
+    ctx.fillRect(100,35,400,690);
+    ctx.fillStyle="#454c62";
+    ctx.fillRect(125,50,350,660);
+
+    ctx.fillStyle="#ffe27a";
+    ctx.fillRect(125,50,350,7);
+    ctx.fillRect(125,700,350,8);
+
+    ctx.fillStyle="white";
+    ctx.font="bold 18px Arial";
+    ctx.fillText("ФИНИШ",255,32);
+    ctx.fillText("СТАРТ",265,735);
+
+    ctx.fillStyle=light==="green"?"#3eae70":"#c33e4d";
+    ctx.beginPath();
+    ctx.arc(300,90,20,0,Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle="white";
+    ctx.font="13px Arial";
+    ctx.fillText("СВЕТОФОР",265,125);
+
+    if(mode==="multi"){
+      players.forEach(p=>{
+        if(p.id===myId||!p.alive)return;
+        ctx.fillStyle=p.won?"#ffe27a":"#7fa8ff";
+        ctx.beginPath();
+        ctx.arc(130+p.x*340,55+p.y*640,12,0,Math.PI*2);
+        ctx.fill();
+      });
+    }
+
+    ctx.fillStyle=won?"#ffe27a":"#a8c4ff";
+    ctx.beginPath();
+    ctx.arc(130+x*340,55+y*640,14,0,Math.PI*2);
+    ctx.fill();
+  }else{
+    ctx.fillStyle="#272d42";
+    ctx.fillRect(45,45,510,670);
+
+    ctx.fillStyle="#ffe27a";
+    ctx.fillRect(45,45,510,7);
+
+    ctx.fillStyle="white";
+    ctx.font="bold 18px Arial";
+    ctx.fillText("ДОБЕРИСЬ ДО ВЕРХА",175,32);
+
+    tiles.forEach(t=>{
+      if(t.broken)return;
+      const tx=65+t.x*460,ty=70+t.y*630;
+      ctx.fillStyle="#6573bb";
+      ctx.fillRect(tx,ty,90,45);
+      ctx.strokeStyle="#aab4ff";
+      ctx.strokeRect(tx,ty,90,45);
+    });
+
+    if(mode==="multi"){
+      players.forEach(p=>{
+        if(p.id===myId||!p.alive)return;
+        ctx.fillStyle="#ff8d9c";
+        ctx.beginPath();
+        ctx.arc(65+p.x*460,70+p.y*630,12,0,Math.PI*2);
+        ctx.fill();
+      });
+    }
+
+    ctx.fillStyle="#a8c4ff";
+    ctx.beginPath();
+    ctx.arc(65+x*460,70+y*630,14,0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function movePlayer(dx,dy){
+  if(!playing)return;
+
+  const moving=Math.abs(dx)+Math.abs(dy)>.015;
+  if(!moving)return;
+
+  if(currentGame==="redgreen"&&light==="red"){
+    if(mode==="solo"){
+      sendLost("Ты двигался на красный свет!");
+    }
+    return;
+  }
+
+  const speed=.007;
+  const oldX=x,oldY=y;
+
+  x=Math.max(.03,Math.min(.97,x+dx*speed));
+  y=Math.max(.02,Math.min(.98,y+dy*speed));
+
+  if(currentGame==="redgreen"&&y<.08){
+    sendWin();
+    return;
+  }
+
+  if(currentGame==="tiles"){
+    const now=Date.now();
+
+    for(const t of tiles){
+      const close=Math.abs(x-t.x)<.14&&Math.abs(y-t.y)<.06;
+
+      if(close&&!t.broken){
+        if(!t.at)t.at=now;
+        if(now-t.at>1100)t.broken=true;
+      }
+    }
+
+    if(y<.08){
+      sendWin();
+      return;
+    }
+
+    if(tiles.every(t=>t.broken)&&y>.15){
+      sendLost("Все плитки рухнули!");
+      return;
+    }
+  }
+
+  if(mode==="multi"&&Date.now()-lastMove>60){
+    send({type:"move",x,y,moving:true});
+    lastMove=Date.now();
+  }
+
+  draw();
+}
+
+function frame(){
+  if(playing){
+    const dx=(keys.ArrowRight||keys.d?1:0)-
+      (keys.ArrowLeft||keys.a?1:0)+joy.x;
+    const dy=(keys.ArrowDown||keys.s?1:0)-
+      (keys.ArrowUp||keys.w?1:0)+joy.y;
+
+    const mag=Math.hypot(dx,dy)||1;
+    movePlayer(dx/mag,dy/mag);
+
+    if(mode==="solo"&&currentGame==="redgreen"&&
+       Date.now()>soloLastLight){
+      light=light==="green"?"red":"green";
+      soloLastLight=Date.now()+(light==="green"?4000:2500);
+      updateLight();
+    }
+
+    draw();
+  }
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+document.addEventListener("keydown",e=>{
+  keys[e.key]=true;
+  if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key))
+    e.preventDefault();
+});
+
+document.addEventListener("keyup",e=>keys[e.key]=false);
+
+const joyBase=$("joystick"),knob=$("knob");
+let joyPointer=null;
+
+function setJoy(e){
+  const r=joyBase.getBoundingClientRect();
+  let dx=e.clientX-(r.left+r.width/2);
+  let dy=e.clientY-(r.top+r.height/2);
+  const max=34,len=Math.hypot(dx,dy)||1;
+
+  if(len>max){
+    dx=dx/len*max;
+    dy=dy/len*max;
+  }
+
+  joy.x=dx/max;
+  joy.y=dy/max;
+  knob.style.left=(34+dx)+"px";
+  knob.style.top=(34+dy)+"px";
+}
+
+function resetJoy(){
+  joyPointer=null;
+  joy.x=0;
+  joy.y=0;
+  knob.style.left="34px";
+  knob.style.top="34px";
+}
+
+joyBase.addEventListener("pointerdown",e=>{
+  joyPointer=e.pointerId;
+  joyBase.setPointerCapture(e.pointerId);
+  setJoy(e);
+});
+
+joyBase.addEventListener("pointermove",e=>{
+  if(e.pointerId===joyPointer)setJoy(e);
+});
+
+joyBase.addEventListener("pointerup",resetJoy);
+joyBase.addEventListener("pointercancel",resetJoy);
+
+connect();
+</script>
+</body>
+</html>
