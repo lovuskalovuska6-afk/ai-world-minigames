@@ -3,559 +3,615 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>AI World — Мини-игры</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>AI WORLD — 3D Multiplayer</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#101322;color:white;font-family:Arial,sans-serif}
-button,input,select{font:inherit}
-button{background:#6557e8;color:white;border:0;border-radius:12px;padding:13px;cursor:pointer;font-weight:bold}
-button:disabled{opacity:.35}
-.screen{display:none;min-height:100dvh;padding:20px;max-width:850px;margin:auto}
-.screen.active{display:flex;flex-direction:column;gap:15px}
-h1,h2,h3,p{margin:5px 0}
-.muted{color:#aeb4d0}
-.card{background:#1b2036;border:1px solid #303753;border-radius:20px;padding:18px}
-.row{display:flex;gap:10px;align-items:center}
-.row>*{flex:1;min-width:0}
-input,select{width:100%;padding:12px;background:#111629;color:white;border:1px solid #39415f;border-radius:10px}
-.hero{font-size:clamp(35px,9vw,60px);font-weight:900}
-.bigbtn{font-size:18px;min-height:55px}
-#pit{height:210px;background:linear-gradient(#242c48,#080a13);border:3px solid #6872a5;border-radius:20px;display:flex;align-items:center;justify-content:center;text-align:center}
-#playerList{display:flex;gap:6px;flex-wrap:wrap}
-.playerTag{background:#343c5d;border-radius:20px;padding:8px 12px}
-.messages{height:130px;overflow:auto;background:#101426;border-radius:12px;padding:10px;font-size:14px}
-.messages div{margin:5px 0;overflow-wrap:anywhere}
-#gameCanvas{width:100%;height:min(55vh,500px);background:#151a2b;border-radius:18px;display:block;touch-action:none}
-#lightStatus{text-align:center;font-size:25px;font-weight:900}
-#joystick{width:120px;height:120px;background:#ffffff22;border:2px solid #ffffff66;border-radius:50%;position:relative;touch-action:none;flex-shrink:0}
-#knob{position:absolute;width:48px;height:48px;background:#c5caff;border-radius:50%;left:34px;top:34px;pointer-events:none}
-.small{font-size:12px}
+:root{--bg:#080c18;--panel:#111a2d;--line:#2b3b5b;--blue:#70a7ff;--gold:#ffdb70}
+body{margin:0;background:var(--bg);color:#f5f7ff;font:15px Arial,sans-serif;overflow:hidden}
+button,input{font:inherit;border-radius:12px;border:1px solid var(--line);padding:12px;background:#0b1222;color:white}
+button{font-weight:bold;cursor:pointer;touch-action:manipulation}
+button.primary{background:var(--blue);color:#07101e;border:0}
+button:disabled{opacity:.5}
+#menu{position:fixed;z-index:10;inset:0;display:grid;place-items:center;padding:16px;overflow:auto;background:radial-gradient(ellipse at top,#1b3764,#080c18 70%)}
+.panel{width:min(570px,100%);padding:22px;border:1px solid var(--line);border-radius:23px;background:#111a2df2;box-shadow:0 20px 70px #0008}
+h1{font-size:clamp(28px,7vw,44px);margin:7px 0}
+p{color:#b9c8e4;line-height:1.45}
+.small{font-size:12px;color:#a8b8d8}
+.field{display:grid;gap:7px;margin:12px 0}
+.field label{font-size:13px;color:#b9c8e4}
+input{width:100%;min-width:0}
+.line{display:flex;gap:8px}.line>*{min-width:0}
+.line input{flex:1}
+.games{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.game{text-align:left;background:#0b1222;min-height:48px}
+.game.active{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+#message{margin-top:12px;min-height:18px;color:#ffdb70}
+#hud{display:none;position:fixed;z-index:3;top:10px;left:10px;right:10px;justify-content:space-between;align-items:flex-start;gap:8px;pointer-events:none}
+.hudbox{background:#09101ee8;border:1px solid #2b3b5b;border-radius:13px;padding:9px 11px;pointer-events:auto}
+#players{font-size:12px;line-height:1.7;color:#dce6ff}
+#status{color:var(--gold);font-weight:bold;margin-top:4px}
+#hud button{padding:9px;font-size:12px}
+#controls{display:none;position:fixed;z-index:4;bottom:14px;left:14px;right:14px;align-items:end;justify-content:space-between;pointer-events:none}
+.pad{display:grid;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(2,48px);gap:5px;pointer-events:auto}
+.pad button,.jump{background:#0b1427e8;border:1px solid #6c83b8}
+.up{grid-column:2}.left{grid-column:1;grid-row:2}.down{grid-column:2;grid-row:2}.right{grid-column:3;grid-row:2}
+.jump{width:76px;height:76px;border-radius:50%;font-size:12px;pointer-events:auto}
+#lookHint{position:fixed;z-index:2;top:105px;left:50%;transform:translateX(-50%);color:white;background:#09101ebd;padding:7px 11px;border-radius:9px;font-size:12px;display:none;white-space:nowrap}
+#overlay{position:fixed;z-index:8;inset:0;display:none;place-items:center;background:#050814c9;padding:18px}
+#overlay .panel{text-align:center}
+#toast{position:fixed;z-index:12;bottom:110px;left:50%;transform:translateX(-50%);background:#111a2d;border:1px solid var(--line);border-radius:12px;padding:11px 15px;display:none;max-width:90%;text-align:center}
+canvas{display:block}
+@media(min-width:800px){#controls{opacity:.65}.panel{padding:28px}}
 </style>
 </head>
 <body>
-
-<section id="home" class="screen active">
-  <div class="hero">🎮 MINI GAMES</div>
-  <p class="muted">Играй один или собирай игроков онлайн.</p>
-
-  <div class="card">
-    <label>Твоё имя</label>
-    <input id="name" maxlength="18" value="Игрок">
-    <label style="display:block;margin-top:14px">Мини-игра</label>
-    <select id="gameChoice">
-      <option value="redgreen">🔴 Красный свет, зелёный свет</option>
-      <option value="tiles">🟦 Падающие плитки</option>
-    </select>
+<div id="menu">
+ <div class="panel">
+  <div class="small">AI WORLD • ONLINE MULTIPLAYER</div>
+  <h1>3D MINI-GAMES</h1>
+  <p>Создай комнату и отправь код друзьям. До 12 игроков. Бегайте, прыгайте и соревнуйтесь!</p>
+  <div class="field">
+   <label for="name">Имя игрока</label>
+   <input id="name" maxlength="18" value="Игрок" placeholder="Твоё имя">
   </div>
+  <div class="field">
+   <label>Выбери мини-игру</label>
+   <div class="games">
+    <button class="game active" data-game="parkour">🏃 3D Паркур</button>
+    <button class="game" data-game="redlight">🚦 Красный свет</button>
+    <button class="game" data-game="tiles">🟦 Исчезающие плитки</button>
+    <button class="game" data-game="lava">🌋 Поднимающаяся лава</button>
+    <button class="game" data-game="obstacles">🧱 Полоса препятствий</button>
+   </div>
+  </div>
+  <button id="create" class="primary" style="width:100%">Создать комнату</button>
+  <div class="field">
+   <label for="code">Код комнаты друга</label>
+   <div class="line"><input id="code" maxlength="5" placeholder="ABCDE"><button id="join">Войти</button></div>
+  </div>
+  <div id="message" class="small">Подключаемся к серверу…</div>
+  <p class="small">ПК: WASD или стрелки, пробел — прыжок. Телефон: экранные кнопки. На ПК мышь поворачивает камеру.</p>
+ </div>
+</div>
 
-  <button class="bigbtn" id="soloBtn">👤 Играть в одиночку</button>
-  <button class="bigbtn" id="multiBtn">👥 Мультиплеер</button>
-  <button class="bigbtn" id="backToWorld" style="background:#248b70">
-    🌍 Вернуться в мир
-  </button>
-  <div id="connection" class="muted small">Подключение к серверу...</div>
-</section>
+<div id="hud">
+ <div class="hudbox">
+  <div id="roomLabel">Комната</div>
+  <div id="status">Лобби</div>
+  <div id="players"></div>
+ </div>
+ <div class="hudbox">
+  <button id="copy">Код</button>
+  <button id="start" class="primary">Начать</button>
+  <button id="exit">Выйти</button>
+ </div>
+</div>
+<div id="lookHint">Проведи пальцем по экрану, чтобы повернуть камеру</div>
+<div id="controls">
+ <div class="pad">
+  <button class="up" data-key="forward">▲</button>
+  <button class="left" data-key="left">◀</button>
+  <button class="down" data-key="back">▼</button>
+  <button class="right" data-key="right">▶</button>
+ </div>
+ <button id="jump" class="jump">ПРЫЖОК</button>
+</div>
+<div id="overlay">
+ <div class="panel">
+  <h1 id="resultTitle">Раунд окончен</h1>
+  <p id="resultText"></p>
+  <button id="again" class="primary">В лобби</button>
+ </div>
+</div>
+<div id="toast"></div>
 
-<section id="lobby" class="screen">
-  <h1>🕳️ ЯМКА ОЖИДАНИЯ</h1>
-  <p class="muted">Собирай игроков перед началом раунда.</p>
-  <div id="pit">
-    <div>
-      <h2>МИНИМУМ 2 ИГРОКА</h2>
-      <p id="count">Игроков: 0 / 2</p>
-    </div>
-  </div>
-  <div class="card">
-    <h3>Игроки в комнате</h3>
-    <div id="playerList"></div>
-  </div>
-  <button id="startBtn" disabled>🔒 Начать — нужно 2 игрока</button>
-  <div class="card">
-    <h3>💬 Чат комнаты</h3>
-    <div id="messages" class="messages"></div>
-    <form id="chatForm" class="row">
-      <input id="chatInput" placeholder="Написать сообщение..." maxlength="180">
-      <button>➤</button>
-    </form>
-  </div>
-  <button id="leaveBtn" style="background:#3a4059">← Назад</button>
-  <button class="backWorld" style="background:#248b70">🌍 Вернуться в мир</button>
-</section>
-
-<section id="game" class="screen">
-  <div class="row">
-    <h2 id="gameTitle">Мини-игра</h2>
-    <button id="exitGame" style="background:#3a4059">Выйти</button>
-  </div>
-  <div id="lightStatus">🟢 ЗЕЛЁНЫЙ СВЕТ</div>
-  <canvas id="gameCanvas" width="600" height="760"></canvas>
-  <div class="row">
-    <div id="joystick"><div id="knob"></div></div>
-    <p class="muted small">Двигай джойстик или используй WASD / стрелки.</p>
-  </div>
-  <div class="card">
-    <h3>💬 Чат игры</h3>
-    <div id="gameMessages" class="messages"></div>
-    <form id="gameChatForm" class="row">
-      <input id="gameChatInput" placeholder="Сообщение..." maxlength="180">
-      <button>➤</button>
-    </form>
-  </div>
-  <button class="backWorld" style="background:#248b70">🌍 Вернуться в мир</button>
-</section>
-
-<section id="result" class="screen">
-  <div class="hero" id="resultTitle">🏆 Победа!</div>
-  <p id="resultText">Раунд завершён.</p>
-  <button id="againBtn" class="bigbtn">Играть ещё</button>
-  <button id="menuBtn" style="background:#3a4059">В меню</button>
-  <button class="backWorld" style="background:#248b70">🌍 Вернуться в мир</button>
-</section>
-
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.min.js"></script>
 <script>
-const $=id=>document.getElementById(id);
-const screens=["home","lobby","game","result"];
-function show(id){
-  screens.forEach(s=>$(s).classList.toggle("active",s===id));
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const socket = io();
+const GAME_NAMES = {
+ parkour:"3D Паркур",
+ redlight:"Красный свет",
+ tiles:"Исчезающие плитки",
+ lava:"Поднимающаяся лава",
+ obstacles:"Полоса препятствий"
+};
+const VALID_GAMES = Object.keys(GAME_NAMES);
+
+let chosen = "parkour";
+let roomCode = "";
+let isHost = false;
+let room = null;
+let scene, camera, renderer, clock;
+let player, playerBody;
+let platforms = [], worldMeshes = [], hazards = [];
+let remotes = new Map();
+let goal, lava;
+let started = false, alive = true, finished = false;
+let velocityY = 0, onGround = true, yaw = 0;
+let keys = {forward:false,back:false,left:false,right:false};
+let lastSend = 0, redTimer = 0, greenLight = true;
+let touchLook = null, toastTimeout = null;
+
+function setMessage(text){ $("message").textContent = text; }
+function toast(text){
+ $("toast").textContent = text;
+ $("toast").style.display = "block";
+ clearTimeout(toastTimeout);
+ toastTimeout = setTimeout(()=>$("toast").style.display="none",2200);
+}
+function safeText(s){
+ return String(s).replace(/[&<>"']/g,c=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ }[c]));
 }
 
-let socket,myId=null,mode="solo",currentGame="redgreen";
-let queuedPlayers=[],players=[],light="green";
-let x=.5,y=.92,alive=true,won=false,playing=false;
-let keys={},joy={x:0,y:0},lastMove=0,soloLastLight=Date.now()+4000;
-let tiles=[];
+socket.on("connect",()=>setMessage("Сервер подключён. Можно создавать комнату."));
+socket.on("connect_error",()=>setMessage("Нет связи с сервером. Разверни server.js на Render."));
+socket.on("disconnect",()=>toast("Соединение с сервером потеряно."));
 
-function connect(){
-  const proto=location.protocol==="https:"?"wss:":"ws:";
-  socket=new WebSocket(proto+"//"+location.host);
-
-  socket.onopen=()=>{
-    $("connection").textContent="🟢 Сервер подключён";
-    send({type:"name",name:$("name").value});
-  };
-
-  socket.onclose=()=>{
-    $("connection").textContent="🔴 Соединение потеряно. Переподключение...";
-    setTimeout(connect,2500);
-  };
-
-  socket.onmessage=e=>{
-    let m;
-    try{m=JSON.parse(e.data)}catch{return}
-    handle(m);
-  };
-}
-
-function send(obj){
-  if(socket&&socket.readyState===WebSocket.OPEN)
-    socket.send(JSON.stringify(obj));
-}
-
-function handle(m){
-  if(m.type==="welcome")myId=m.id;
-
-  if(m.type==="lobby"){
-    queuedPlayers=m.players||[];
-    $("count").textContent="Игроков: "+m.count+" / 2";
-    $("playerList").innerHTML="";
-
-    queuedPlayers.forEach(p=>{
-      const el=document.createElement("span");
-      el.className="playerTag";
-      el.textContent=p.name+(p.id===myId?" (ты)":"");
-      $("playerList").appendChild(el);
-    });
-
-    const ok=m.count>=2;
-    $("startBtn").disabled=!ok;
-    $("startBtn").textContent=ok?"▶ Начать игру":"🔒 Начать — нужно 2 игрока";
+document.querySelectorAll("[data-game]").forEach(button=>{
+ button.addEventListener("click",()=>{
+  chosen = button.dataset.game;
+  document.querySelectorAll("[data-game]").forEach(b=>b.classList.toggle("active",b===button));
+  if(room && isHost){
+   socket.emit("game:select",{game:chosen},r=>{
+    if(r && !r.ok) toast(r.error || "Не удалось выбрать игру");
+   });
   }
+ });
+});
 
-  if(m.type==="notice")alert(m.text);
-
-  if(m.type==="chat"){
-    addMessage("messages",m.name+": "+m.text);
-    addMessage("gameMessages",m.name+": "+m.text);
-  }
-
-  if(m.type==="gameStart"){
-    mode="multi";
-    currentGame=m.game;
-    x=.5;y=.92;alive=true;won=false;playing=true;
-    light=m.light||"green";
-    beginGame();
-  }
-
-  if(m.type==="light"){
-    light=m.light;
-    updateLight();
-  }
-
-  if(m.type==="gameState"){
-    players=m.players||[];
-    if(m.light)light=m.light;
-    updateLight();
-    draw();
-  }
-
-  if(m.type==="lost")finish(false,m.reason);
-  if(m.type==="won")finish(true,m.text);
-
-  if(m.type==="roundEnded"){
-    playing=false;
-    show("result");
-    $("resultTitle").textContent="🏁 Раунд завершён";
-    $("resultText").textContent="Раунд завершён. Можно сыграть ещё!";
-  }
-}
-
-function addMessage(id,text){
-  const box=$(id),d=document.createElement("div");
-  d.textContent=text;
-  box.appendChild(d);
-  box.scrollTop=box.scrollHeight;
-}
-
-function sendChat(id){
-  const text=$(id).value.trim();
-  if(!text)return;
-  send({type:"chat",text});
-  $(id).value="";
-}
-
-$("chatForm").onsubmit=e=>{
-  e.preventDefault();
-  sendChat("chatInput");
+$("create").onclick = ()=>{
+ socket.emit("room:create",{name:$("name").value,game:chosen},r=>{
+  if(!r || !r.ok) return setMessage(r?.error || "Не удалось создать комнату");
+  roomCode = r.code;
+  isHost = true;
+  enterRoom();
+ });
+};
+$("join").onclick = ()=>{
+ socket.emit("room:join",{name:$("name").value,code:$("code").value},r=>{
+  if(!r || !r.ok) return setMessage(r?.error || "Не удалось войти");
+  roomCode = r.code;
+  isHost = !!r.isHost;
+  enterRoom();
+ });
+};
+$("copy").onclick = async ()=>{
+ try{
+  await navigator.clipboard.writeText(roomCode);
+  toast("Код комнаты скопирован: "+roomCode);
+ }catch(e){toast("Код комнаты: "+roomCode);}
+};
+$("start").onclick = ()=>socket.emit("game:start",{},r=>{
+ if(r && !r.ok) toast(r.error || "Не удалось начать");
+});
+$("exit").onclick = ()=>location.reload();
+$("again").onclick = ()=>{
+ $("overlay").style.display="none";
+ if(isHost) socket.emit("game:start",{});
+ else toast("Жди, пока создатель запустит новый раунд");
 };
 
-$("gameChatForm").onsubmit=e=>{
-  e.preventDefault();
-  sendChat("gameChatInput");
-};
-
-$("name").onchange=()=>send({type:"name",name:$("name").value});
-
-$("backToWorld").onclick=goToWorld;
-document.querySelectorAll(".backWorld").forEach(b=>b.onclick=goToWorld);
-
-function goToWorld(){
-  playing=false;
-  location.href="https://ai-world-game.onrender.com";
+function enterRoom(){
+ $("menu").style.display="none";
+ $("hud").style.display="flex";
+ $("controls").style.display="flex";
+ $("lookHint").style.display="block";
+ $("roomLabel").textContent="Комната "+roomCode;
+ if(!renderer) init3D();
+ if(room) applyRoom(room);
 }
 
-$("soloBtn").onclick=()=>{
-  mode="solo";
-  currentGame=$("gameChoice").value;
-  x=.5;y=.92;alive=true;won=false;playing=true;
-  light="green";
-  soloLastLight=Date.now()+4000;
-  beginGame();
-};
+socket.on("room:update",data=>{
+ const previousStatus = room?.status;
+ room = data;
+ chosen = data.game;
+ isHost = data.hostId === socket.id;
+ applyRoom(data);
+ if(data.status==="playing" && (!started || previousStatus!=="playing")){
+  startGame(data.game);
+ }
+ if(data.status==="lobby" && started) showLobby();
+});
 
-$("multiBtn").onclick=()=>{
-  mode="multi";
-  currentGame=$("gameChoice").value;
-  $("messages").innerHTML="";
-  show("lobby");
-  send({type:"joinQueue"});
-};
+function applyRoom(data){
+ if(!data) return;
+ $("roomLabel").textContent="Комната "+data.code+" • "+(GAME_NAMES[data.game]||data.game);
+ $("status").textContent=data.status==="playing"?"РАУНД ИДЁТ":"Лобби — ждём старт";
+ $("start").style.display=data.hostId===socket.id?"inline-block":"none";
+ $("start").textContent=data.status==="playing"?"Перезапустить":"Начать";
+ $("players").innerHTML=data.players.map(p=>
+  (p.id===data.hostId?"👑 ":"")+safeText(p.name)+
+  (p.finished?" 🏆":(!p.alive?" ❌":""))
+ ).join("<br>");
+ if(scene) syncRemotes(data.players);
+}
 
-$("startBtn").onclick=()=>send({type:"start",game:currentGame});
+socket.on("game:started",data=>startGame(data.game));
+socket.on("player:moved",data=>updateRemote(data));
+socket.on("game:event",event=>{
+ const p=room?.players.find(x=>x.id===event.playerId);
+ if(event.type==="finished") toast((p?.name||"Игрок")+" добрался до финиша!");
+ if(event.type==="eliminated") toast((p?.name||"Игрок")+" выбыл!");
+});
 
-$("leaveBtn").onclick=()=>{
-  send({type:"leaveQueue"});
-  show("home");
-};
+function material(color,roughness=.82){
+ return new THREE.MeshStandardMaterial({color,roughness});
+}
+function addBox(x,y,z,sx,sy,sz,color,solid=true){
+ const mesh=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),material(color));
+ mesh.position.set(x,y,z);
+ mesh.castShadow=true;
+ mesh.receiveShadow=true;
+ scene.add(mesh);
+ worldMeshes.push(mesh);
+ if(solid) platforms.push({x,y,z,sx,sy,sz,mesh});
+ return mesh;
+}
+function makeAvatar(color){
+ const group=new THREE.Group();
+ const body=new THREE.Mesh(new THREE.BoxGeometry(.72,.85,.42),material(color));
+ body.position.y=1.0;
+ body.castShadow=true;
+ group.add(body);
+ const head=new THREE.Mesh(new THREE.BoxGeometry(.53,.48,.5),material(0xffd2a6));
+ head.position.y=1.68;
+ head.castShadow=true;
+ group.add(head);
+ const legs=material(0x202b45);
+ for(const x of [-.2,.2]){
+  const leg=new THREE.Mesh(new THREE.BoxGeometry(.23,.5,.25),legs);
+  leg.position.set(x,.4,0);
+  group.add(leg);
+ }
+ return group;
+}
+function init3D(){
+ scene = new THREE.Scene();
+ scene.background = new THREE.Color(0x87b6e8);
+ scene.fog = new THREE.Fog(0x87b6e8,45,110);
+ camera = new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.1,300);
+ renderer = new THREE.WebGLRenderer({antialias:true});
+ renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));
+ renderer.setSize(innerWidth,innerHeight);
+ renderer.shadowMap.enabled=true;
+ document.body.appendChild(renderer.domElement);
 
-$("exitGame").onclick=()=>{
-  playing=false;
-  if(mode==="multi")send({type:"backToLobby"});
-  show(mode==="multi"?"lobby":"home");
-};
+ scene.add(new THREE.HemisphereLight(0xffffff,0x58647b,2));
+ const sun=new THREE.DirectionalLight(0xffffff,2);
+ sun.position.set(-12,20,10);
+ sun.castShadow=true;
+ scene.add(sun);
 
-$("againBtn").onclick=()=>{
-  if(mode==="solo"){
-    x=.5;y=.92;alive=true;won=false;
-    light="green";
-    soloLastLight=Date.now()+4000;
-    beginGame();
-  }else{
-    send({type:"backToLobby"});
-    show("lobby");
+ player = new THREE.Group();
+ playerBody = makeAvatar(0x58a6ff);
+ player.add(playerBody);
+ scene.add(player);
+ clock = new THREE.Clock();
+
+ buildWorld(chosen);
+ addEventListener("resize",()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+ });
+
+ renderer.domElement.addEventListener("pointerdown",e=>{
+  if(innerWidth>800 && e.button===0) renderer.domElement.requestPointerLock?.();
+ });
+ document.addEventListener("mousemove",e=>{
+  if(document.pointerLockElement===renderer.domElement) yaw-=e.movementX*.0025;
+ });
+
+ renderer.domElement.addEventListener("touchstart",e=>{
+  if(e.touches.length===1) touchLook={x:e.touches[0].clientX,y:e.touches[0].clientY};
+ },{passive:true});
+ renderer.domElement.addEventListener("touchmove",e=>{
+  if(!touchLook || e.touches.length!==1)return;
+  const t=e.touches[0];
+  const dx=t.clientX-touchLook.x;
+  yaw-=dx*.008;
+  touchLook={x:t.clientX,y:t.clientY};
+ },{passive:true});
+ renderer.domElement.addEventListener("touchend",()=>touchLook=null,{passive:true});
+
+ animate();
+}
+
+function clearWorld(){
+ for(const mesh of worldMeshes) scene.remove(mesh);
+ worldMeshes=[];
+ platforms=[];
+ hazards=[];
+ goal=null;
+ if(lava){scene.remove(lava);lava=null;}
+}
+function buildWorld(game){
+ if(!scene)return;
+ clearWorld();
+
+ // Ground far below the course: falling off a platform is still a loss.
+ addBox(0,-7,-15,150,1,150,0x263248,true);
+ addBox(0,-.15,4,9,.5,9,0x64748b,true);
+
+ if(game==="parkour"){
+  for(let i=0;i<12;i++){
+   const x=(i%2===0)?-2:2;
+   addBox(x,.25+i*.16,-1-i*2.9,3.3,.5,2.5,
+    [0x48bfe3,0x6c8cff,0x9a83ff][i%3]);
   }
-};
+ }else if(game==="redlight"){
+  for(let i=0;i<13;i++){
+   addBox(0,.05,-1-i*2.7,7,.3,2.4,
+    i%2?0x5f7796:0x89a6c6);
+  }
+ }else if(game==="tiles"){
+  for(let i=0;i<11;i++){
+   for(let j=0;j<3;j++){
+    const x=(j-1)*2;
+    const z=-1-i*2.8;
+    const missing=Math.random()<.16;
+    const tile=addBox(x,.05,z,1.8,.3,2.5,
+      missing?0x8b3648:0x49a9ff,!missing);
+    if(missing) tile.visible=false;
+    else hazards.push({type:"tile",mesh:tile,used:false,at:0});
+   }
+  }
+ }else if(game==="lava"){
+  for(let i=0;i<13;i++){
+   addBox(i%2?1.8:-1.8,.25+i*.08,-1-i*2.8,3.2,.4,2.5,0xe5a04b);
+  }
+  lava=new THREE.Mesh(new THREE.BoxGeometry(45,.5,75),material(0xff3c2f,.4));
+  lava.position.set(0,-3,-12);
+  scene.add(lava);
+ }else if(game==="obstacles"){
+  for(let i=0;i<12;i++){
+   const z=-1-i*2.9;
+   addBox(0,.05,z,7,.3,2.5,0x7c91b1);
+   const bar=addBox(i%2?1.4:-1.4,1.15,z,1.3,1.7,.65,0xf16b7d,false);
+   hazards.push({type:"bar",mesh:bar,z});
+  }
+ }
 
-$("menuBtn").onclick=()=>{
-  playing=false;
-  if(mode==="multi")send({type:"backToLobby"});
-  show("home");
-};
+ goal=addBox(0,.2,-37,9,.5,4,0x35d486,false);
+ player.position.set(0,.25,4);
+ velocityY=0;
+ onGround=true;
+ alive=true;
+ finished=false;
+ redTimer=0;
+ greenLight=true;
+}
+function showLobby(){
+ started=false;
+ $("overlay").style.display="none";
+ $("status").textContent="Лобби — ждём старт";
+ if(scene){
+  buildWorld(chosen);
+  syncRemotes(room?.players||[]);
+ }
+}
+function startGame(game){
+ chosen=VALID_GAMES.includes(game)?game:"parkour";
+ if(!scene)return;
+ started=true;
+ alive=true;
+ finished=false;
+ velocityY=0;
+ buildWorld(chosen);
+ $("overlay").style.display="none";
+ $("status").textContent="ИГРА: "+GAME_NAMES[chosen];
+ toast("Раунд начался! Доберись до финиша!");
+}
+function syncRemotes(players){
+ if(!scene)return;
+ const ids=new Set(players.filter(p=>p.id!==socket.id).map(p=>p.id));
+ for(const [id,mesh] of remotes){
+  if(!ids.has(id)){scene.remove(mesh);remotes.delete(id);}
+ }
+ for(const p of players){
+  if(p.id===socket.id)continue;
+  if(!remotes.has(p.id)){
+   const mesh=makeAvatar(Number.parseInt(String(p.color||"#ffbb55").slice(1),16)||0xffbb55);
+   scene.add(mesh);
+   remotes.set(p.id,mesh);
+  }
+  updateRemote(p);
+ }
+}
+function updateRemote(p){
+ const mesh=remotes.get(p.id);
+ if(!mesh)return;
+ mesh.position.set(p.x,p.y,p.z);
+ mesh.rotation.y=p.yaw||0;
+ mesh.visible=p.alive!==false;
+}
+function finishRound(won,reason){
+ if(!alive)return;
+ alive=false;
+ finished=won;
+ socket.emit("game:event",{
+  type:won?"finished":"eliminated",
+  detail:reason||""
+ });
+ socket.emit("player:move",{
+  x:player.position.x,y:player.position.y,z:player.position.z,
+  yaw,alive,finished
+ });
+ $("resultTitle").textContent=won?"🏆 ПОБЕДА!":"💥 ТЫ ВЫБЫЛ";
+ $("resultText").textContent=won?
+  "Ты добрался до финиша!":
+  "Ты проиграл: "+(reason||"попробуй ещё раз")+". Дождись нового раунда.";
+ $("overlay").style.display="grid";
+ $("status").textContent=won?"ФИНИШ!":"ВЫБЫЛ";
+}
+function jump(){
+ if(started&&alive&&onGround){
+  velocityY=8.2;
+  onGround=false;
+  socket.emit("game:event",{type:"jump"});
+ }
+}
+function animate(){
+ requestAnimationFrame(animate);
+ if(!renderer)return;
+ const dt=Math.min(clock.getDelta(),.04);
+ const time=clock.elapsedTime;
 
-function beginGame(){
-  show("game");
-  $("gameMessages").innerHTML="";
-  $("gameTitle").textContent=currentGame==="tiles"
-    ?"🟦 Падающие плитки":"🔴 Красный / зелёный";
-  $("lightStatus").style.display=currentGame==="redgreen"?"block":"none";
-
-  tiles=[];
-  if(currentGame==="tiles"){
-    for(let i=0;i<10;i++){
-      tiles.push({
-        x:.12+(i%3)*.36,
-        y:.15+Math.floor(i/3)*.19,
-        broken:false,
-        at:0
-      });
-    }
+ if(started&&alive&&player){
+  if(chosen==="redlight"){
+   redTimer+=dt;
+   if(redTimer>3.5){
+    redTimer=0;
+    greenLight=!greenLight;
+    toast(greenLight?"🟢 ЗЕЛЁНЫЙ — БЕГИ!":"🔴 КРАСНЫЙ — СТОЙ!");
+   }
+   $("status").textContent=greenLight?"🟢 ЗЕЛЁНЫЙ — БЕГИ":"🔴 КРАСНЫЙ — СТОЙ";
+   if(!greenLight&&(keys.forward||keys.back||keys.left||keys.right)){
+    finishRound(false,"движение на красный свет");
+   }
   }
 
-  updateLight();
-  draw();
-}
+  const dx0=(keys.right?1:0)-(keys.left?1:0);
+  const dz0=(keys.back?1:0)-(keys.forward?1:0);
+  const length=Math.hypot(dx0,dz0)||1;
+  const dx=dx0/length,dz=dz0/length;
+  const speed=6;
+  const moveX=(dx*Math.cos(yaw)+dz*Math.sin(yaw))*speed*dt;
+  const moveZ=(-dx*Math.sin(yaw)+dz*Math.cos(yaw))*speed*dt;
 
-function updateLight(){
-  if(currentGame!=="redgreen")return;
-  $("lightStatus").textContent=light==="green"
-    ?"🟢 ЗЕЛЁНЫЙ СВЕТ":"🔴 КРАСНЫЙ СВЕТ — СТОЙ!";
-  $("lightStatus").style.color=light==="green"?"#65f59a":"#ff6464";
-}
-
-function finish(win,reason){
-  if(!playing)return;
-  playing=false;
-  alive=!win;
-  won=win;
-  show("result");
-  $("resultTitle").textContent=win?"🏆 ПОБЕДА!":"💥 ПОРАЖЕНИЕ";
-  $("resultText").textContent=reason||
-    (win?"Ты добрался до финиша!":"Попробуй ещё раз.");
-}
-
-function sendLost(reason){
-  if(!playing)return;
-  if(mode==="multi")send({type:"move",x,y,moving:false});
-  finish(false,reason);
-}
-
-function sendWin(){
-  if(!playing)return;
-  if(mode==="multi")send({type:"move",x,y,moving:false});
-  finish(true,"Ты добрался до финиша!");
-}
-
-const canvas=$("gameCanvas"),ctx=canvas.getContext("2d");
-
-function draw(){
-  ctx.clearRect(0,0,600,760);
-  ctx.fillStyle="#151a2b";
-  ctx.fillRect(0,0,600,760);
-
-  if(currentGame==="redgreen"){
-    ctx.fillStyle="#343a4e";
-    ctx.fillRect(100,35,400,690);
-    ctx.fillStyle="#454c62";
-    ctx.fillRect(125,50,350,660);
-
-    ctx.fillStyle="#ffe27a";
-    ctx.fillRect(125,50,350,7);
-    ctx.fillRect(125,700,350,8);
-
-    ctx.fillStyle="white";
-    ctx.font="bold 18px Arial";
-    ctx.fillText("ФИНИШ",255,32);
-    ctx.fillText("СТАРТ",265,735);
-
-    ctx.fillStyle=light==="green"?"#3eae70":"#c33e4d";
-    ctx.beginPath();
-    ctx.arc(300,90,20,0,Math.PI*2);
-    ctx.fill();
-
-    ctx.fillStyle="white";
-    ctx.font="13px Arial";
-    ctx.fillText("СВЕТОФОР",265,125);
-
-    if(mode==="multi"){
-      players.forEach(p=>{
-        if(p.id===myId||!p.alive)return;
-        ctx.fillStyle=p.won?"#ffe27a":"#7fa8ff";
-        ctx.beginPath();
-        ctx.arc(130+p.x*340,55+p.y*640,12,0,Math.PI*2);
-        ctx.fill();
-      });
-    }
-
-    ctx.fillStyle=won?"#ffe27a":"#a8c4ff";
-    ctx.beginPath();
-    ctx.arc(130+x*340,55+y*640,14,0,Math.PI*2);
-    ctx.fill();
-  }else{
-    ctx.fillStyle="#272d42";
-    ctx.fillRect(45,45,510,670);
-
-    ctx.fillStyle="#ffe27a";
-    ctx.fillRect(45,45,510,7);
-
-    ctx.fillStyle="white";
-    ctx.font="bold 18px Arial";
-    ctx.fillText("ДОБЕРИСЬ ДО ВЕРХА",175,32);
-
-    tiles.forEach(t=>{
-      if(t.broken)return;
-      const tx=65+t.x*460,ty=70+t.y*630;
-      ctx.fillStyle="#6573bb";
-      ctx.fillRect(tx,ty,90,45);
-      ctx.strokeStyle="#aab4ff";
-      ctx.strokeRect(tx,ty,90,45);
-    });
-
-    if(mode==="multi"){
-      players.forEach(p=>{
-        if(p.id===myId||!p.alive)return;
-        ctx.fillStyle="#ff8d9c";
-        ctx.beginPath();
-        ctx.arc(65+p.x*460,70+p.y*630,12,0,Math.PI*2);
-        ctx.fill();
-      });
-    }
-
-    ctx.fillStyle="#a8c4ff";
-    ctx.beginPath();
-    ctx.arc(65+x*460,70+y*630,14,0,Math.PI*2);
-    ctx.fill();
+  if(!(chosen==="redlight"&&!greenLight)){
+   player.position.x+=moveX;
+   player.position.z+=moveZ;
   }
-}
+  player.position.x=Math.max(-7,Math.min(7,player.position.x));
 
-function movePlayer(dx,dy){
-  if(!playing)return;
+  const oldY=player.position.y;
+  velocityY-=18*dt;
+  player.position.y+=velocityY*dt;
+  onGround=false;
 
-  const moving=Math.abs(dx)+Math.abs(dy)>.015;
-  if(!moving)return;
-
-  if(currentGame==="redgreen"&&light==="red"){
-    if(mode==="solo"){
-      sendLost("Ты двигался на красный свет!");
-    }
-    return;
+  for(const p of platforms){
+   if(!p.mesh.visible)continue;
+   const withinX=Math.abs(player.position.x-p.x)<p.sx/2+.24;
+   const withinZ=Math.abs(player.position.z-p.z)<p.sz/2+.24;
+   const top=p.y+p.sy/2;
+   if(withinX&&withinZ&&velocityY<=0&&oldY>=top-.06&&player.position.y<=top+.35){
+    player.position.y=top;
+    velocityY=0;
+    onGround=true;
+   }
   }
 
-  const speed=.007;
-  const oldX=x,oldY=y;
-
-  x=Math.max(.03,Math.min(.97,x+dx*speed));
-  y=Math.max(.02,Math.min(.98,y+dy*speed));
-
-  if(currentGame==="redgreen"&&y<.08){
-    sendWin();
-    return;
+  if(chosen==="tiles"){
+   for(const h of hazards){
+    if(h.used)continue;
+    if(Math.abs(player.position.x-h.mesh.position.x)<.65&&
+       Math.abs(player.position.z-h.mesh.position.z)<.75&&onGround){
+     h.used=true;
+     h.at=time;
+    }
+   }
+   for(const h of hazards){
+    if(h.used&&time-h.at>1.0&&h.mesh.visible){
+     h.mesh.visible=false;
+     const index=platforms.findIndex(p=>p.mesh===h.mesh);
+     if(index>=0)platforms.splice(index,1);
+    }
+   }
   }
 
-  if(currentGame==="tiles"){
-    const now=Date.now();
-
-    for(const t of tiles){
-      const close=Math.abs(x-t.x)<.14&&Math.abs(y-t.y)<.06;
-
-      if(close&&!t.broken){
-        if(!t.at)t.at=now;
-        if(now-t.at>1100)t.broken=true;
-      }
+  if(chosen==="obstacles"){
+   for(const h of hazards){
+    if(Math.abs(player.position.z-h.z)<.45&&
+       Math.abs(player.position.x-h.mesh.position.x)<.85&&
+       player.position.y<1.8){
+     finishRound(false,"столкновение с препятствием");
+     break;
     }
-
-    if(y<.08){
-      sendWin();
-      return;
-    }
-
-    if(tiles.every(t=>t.broken)&&y>.15){
-      sendLost("Все плитки рухнули!");
-      return;
-    }
+   }
   }
 
-  if(mode==="multi"&&Date.now()-lastMove>60){
-    send({type:"move",x,y,moving:true});
-    lastMove=Date.now();
+  if(chosen==="lava"&&lava){
+   lava.position.y=Math.min(1.0,lava.position.y+dt*.12);
+   if(player.position.y<lava.position.y+.8&&player.position.z<2){
+    finishRound(false,"лава догнала тебя");
+   }
   }
 
-  draw();
+  if(player.position.y < -5){
+   finishRound(false,"падение с платформы");
+  }
+  if(player.position.z < -35){
+   finishRound(true,"финиш");
+  }
+
+  player.rotation.y=yaw;
+  if(time-lastSend>.06){
+   lastSend=time;
+   socket.volatile.emit("player:move",{
+    x:player.position.x,y:player.position.y,z:player.position.z,
+    yaw,alive,finished
+   });
+  }
+ }
+
+ if(player){
+  const target=new THREE.Vector3(
+   player.position.x,
+   player.position.y+1.15,
+   player.position.z
+  );
+  const behind=new THREE.Vector3(
+   Math.sin(yaw)*7,
+   4.0,
+   Math.cos(yaw)*7
+  );
+  camera.position.lerp(target.clone().add(behind),.14);
+  camera.lookAt(target);
+ }
+ renderer.render(scene,camera);
 }
-
-function frame(){
-  if(playing){
-    const dx=(keys.ArrowRight||keys.d?1:0)-
-      (keys.ArrowLeft||keys.a?1:0)+joy.x;
-    const dy=(keys.ArrowDown||keys.s?1:0)-
-      (keys.ArrowUp||keys.w?1:0)+joy.y;
-
-    const mag=Math.hypot(dx,dy)||1;
-    movePlayer(dx/mag,dy/mag);
-
-    if(mode==="solo"&&currentGame==="redgreen"&&
-       Date.now()>soloLastLight){
-      light=light==="green"?"red":"green";
-      soloLastLight=Date.now()+(light==="green"?4000:2500);
-      updateLight();
-    }
-
-    draw();
-  }
-
-  requestAnimationFrame(frame);
-}
-requestAnimationFrame(frame);
 
 document.addEventListener("keydown",e=>{
-  keys[e.key]=true;
-  if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key))
-    e.preventDefault();
+ const map={
+  KeyW:"forward",ArrowUp:"forward",
+  KeyS:"back",ArrowDown:"back",
+  KeyA:"left",ArrowLeft:"left",
+  KeyD:"right",ArrowRight:"right"
+ };
+ if(map[e.code]){keys[map[e.code]]=true;e.preventDefault();}
+ if(e.code==="Space"){e.preventDefault();jump();}
 });
-
-document.addEventListener("keyup",e=>keys[e.key]=false);
-
-const joyBase=$("joystick"),knob=$("knob");
-let joyPointer=null;
-
-function setJoy(e){
-  const r=joyBase.getBoundingClientRect();
-  let dx=e.clientX-(r.left+r.width/2);
-  let dy=e.clientY-(r.top+r.height/2);
-  const max=34,len=Math.hypot(dx,dy)||1;
-
-  if(len>max){
-    dx=dx/len*max;
-    dy=dy/len*max;
-  }
-
-  joy.x=dx/max;
-  joy.y=dy/max;
-  knob.style.left=(34+dx)+"px";
-  knob.style.top=(34+dy)+"px";
-}
-
-function resetJoy(){
-  joyPointer=null;
-  joy.x=0;
-  joy.y=0;
-  knob.style.left="34px";
-  knob.style.top="34px";
-}
-
-joyBase.addEventListener("pointerdown",e=>{
-  joyPointer=e.pointerId;
-  joyBase.setPointerCapture(e.pointerId);
-  setJoy(e);
+document.addEventListener("keyup",e=>{
+ const map={
+  KeyW:"forward",ArrowUp:"forward",
+  KeyS:"back",ArrowDown:"back",
+  KeyA:"left",ArrowLeft:"left",
+  KeyD:"right",ArrowRight:"right"
+ };
+ if(map[e.code])keys[map[e.code]]=false;
 });
-
-joyBase.addEventListener("pointermove",e=>{
-  if(e.pointerId===joyPointer)setJoy(e);
+document.querySelectorAll("[data-key]").forEach(button=>{
+ const key=button.dataset.key;
+ const down=e=>{e.preventDefault();keys[key]=true;};
+ const up=e=>{e.preventDefault();keys[key]=false;};
+ button.addEventListener("pointerdown",down);
+ button.addEventListener("pointerup",up);
+ button.addEventListener("pointercancel",up);
+ button.addEventListener("pointerleave",up);
 });
-
-joyBase.addEventListener("pointerup",resetJoy);
-joyBase.addEventListener("pointercancel",resetJoy);
-
-connect();
+$("jump").addEventListener("pointerdown",e=>{
+ e.preventDefault();
+ jump();
+});
+})();
 </script>
 </body>
 </html>
