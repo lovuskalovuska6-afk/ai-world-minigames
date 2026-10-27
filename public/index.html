@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>AI WORLD — 3D Multiplayer</title>
+<title>AI WORLD — 3D Mini-Games</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#080c18;--panel:#111a2d;--line:#2b3b5b;--blue:#70a7ff;--gold:#ffdb70}
@@ -20,18 +20,17 @@ p{color:#b9c8e4;line-height:1.45}
 .small{font-size:12px;color:#a8b8d8}
 .field{display:grid;gap:7px;margin:12px 0}
 .field label{font-size:13px;color:#b9c8e4}
-input{width:100%;min-width:0;touch-action:auto}
 .line{display:flex;gap:8px}.line>*{min-width:0}
 .line input{flex:1}
-.games{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
-.game{text-align:left;background:#0b1222;min-height:48px}
-.game.active{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+.games,.modes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.game,.mode{text-align:left;background:#0b1222;min-height:48px}
+.game.active,.mode.active{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
 #message{margin-top:12px;min-height:18px;color:#ffdb70}
 #hud{display:none;position:fixed;z-index:3;top:10px;left:10px;right:10px;justify-content:space-between;align-items:flex-start;gap:8px;pointer-events:none}
 .hudbox{background:#09101ee8;border:1px solid #2b3b5b;border-radius:13px;padding:9px 11px;pointer-events:auto}
 #players{font-size:12px;line-height:1.7;color:#dce6ff}
 #status{color:var(--gold);font-weight:bold;margin-top:4px}
-#hud button{padding:9px;font-size:12px}
+#hud button{padding:9px;font-size:12px;margin:2px}
 #controls{display:none;position:fixed;z-index:4;bottom:14px;left:14px;right:14px;align-items:end;justify-content:space-between;pointer-events:none}
 .pad{display:grid;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(2,48px);gap:5px;pointer-events:auto}
 .pad button,.jump{background:#0b1427e8;border:1px solid #6c83b8;user-select:none;-webkit-user-select:none}
@@ -46,15 +45,27 @@ canvas{display:block;position:fixed;inset:0;z-index:0;touch-action:none}
 </style>
 </head>
 <body>
+
 <div id="menu">
  <div class="panel">
-  <div class="small">AI WORLD • ONLINE MULTIPLAYER</div>
-  <h1>3D MINI-GAMES</h1>
-  <p>Создай комнату и отправь код друзьям. До 12 игроков. Бегайте, прыгайте и соревнуйтесь!</p>
+  <div class="small">AI WORLD • 3D MINI-GAMES</div>
+  <h1>AI WORLD</h1>
+  <p>Выбирай режим, проходи препятствия, прыгай по платформам и соревнуйся!</p>
+
   <div class="field">
    <label for="name">Имя игрока</label>
    <input id="name" maxlength="18" value="Игрок" placeholder="Твоё имя">
   </div>
+
+  <div class="field">
+   <label>Режим игры</label>
+   <div class="modes">
+    <button class="mode active" data-mode="solo">🎮 Одиночка</button>
+    <button class="mode" data-mode="bots">🤖 С ботами</button>
+    <button class="mode" data-mode="multi" style="grid-column:1/-1">🌐 Мультиплеер</button>
+   </div>
+  </div>
+
   <div class="field">
    <label>Выбери мини-игру</label>
    <div class="games">
@@ -65,31 +76,42 @@ canvas{display:block;position:fixed;inset:0;z-index:0;touch-action:none}
     <button class="game" data-game="obstacles">🧱 Полоса препятствий</button>
    </div>
   </div>
-  <button id="create" class="primary" style="width:100%">Создать комнату</button>
-  <div class="field">
-   <label for="code">Код комнаты друга</label>
-   <div class="line"><input id="code" maxlength="5" placeholder="ABCDE"><button id="join">Войти</button></div>
+
+  <button id="play" class="primary" style="width:100%">Играть</button>
+
+  <div id="multiFields" style="display:none">
+   <div class="field">
+    <button id="create" class="primary">Создать комнату</button>
+   </div>
+   <div class="field">
+    <label for="code">Код комнаты друга</label>
+    <div class="line">
+     <input id="code" maxlength="8" placeholder="Код комнаты">
+     <button id="join">Войти</button>
+    </div>
+   </div>
   </div>
-  <div id="message" class="small">Подключаемся к серверу…</div>
-  <p class="small">ПК: WASD или стрелки, пробел — прыжок. Телефон: экранные кнопки. Свайп по свободной области экрана поворачивает камеру.</p>
+
+  <div id="message" class="small">Одиночная игра работает без сервера.</div>
+  <p class="small">ПК: WASD/стрелки, пробел — прыжок. Телефон: кнопки движения, отдельный свайп для камеры. Движение относительно направления камеры.</p>
  </div>
 </div>
 
 <div id="hud">
  <div class="hudbox">
-  <div id="roomLabel">Комната</div>
-  <div id="status">Лобби</div>
+  <div id="roomLabel">AI WORLD</div>
+  <div id="status">Мир загружен</div>
   <div id="players"></div>
  </div>
  <div class="hudbox">
   <button id="copy">Код</button>
   <button id="start" class="primary">Начать</button>
   <button id="world">В мир</button>
-  <button id="exit">Выйти</button>
+  <button id="exit">Меню</button>
  </div>
 </div>
 
-<div id="lookHint">Свайпай по экрану, чтобы повернуть камеру</div>
+<div id="lookHint">Свайпай справа или по свободной области, чтобы повернуть камеру</div>
 
 <div id="controls">
  <div class="pad">
@@ -106,6 +128,7 @@ canvas{display:block;position:fixed;inset:0;z-index:0;touch-action:none}
   <h1 id="resultTitle">Раунд окончен</h1>
   <p id="resultText"></p>
   <button id="again" class="primary">В мир</button>
+  <button id="retry">Заново</button>
  </div>
 </div>
 <div id="toast"></div>
@@ -127,16 +150,18 @@ const GAME_NAMES={
 const VALID_GAMES=Object.keys(GAME_NAMES);
 
 let socket=null;
-let chosen="parkour",roomCode="",isHost=false,room=null;
+let chosen="parkour",mode="solo",roomCode="",isHost=false,room=null;
 let scene,camera,renderer,clock,player,playerBody;
-let platforms=[],worldMeshes=[],hazards=[],remotes=new Map();
+let platforms=[],worldMeshes=[],hazards=[],remotes=new Map(),bots=[];
 let goal=null,lava=null;
-let started=false,alive=true,finished=false;
+let started=false,alive=true,finished=false,localGame=true;
 let velocityY=0,onGround=true,yaw=0;
 let keys={forward:false,back:false,left:false,right:false};
 let lastSend=0,redTimer=0,greenLight=true;
 let toastTimeout=null,animationStarted=false;
 let lookPointers=new Map();
+const PLAYER_RADIUS=.28;
+const PLAYER_HEIGHT=1.8;
 
 function setMessage(t){$("message").textContent=t}
 
@@ -153,32 +178,49 @@ function safeText(s){
  }[c]));
 }
 
+function resetKeys(){
+ keys={forward:false,back:false,left:false,right:false};
+ document.querySelectorAll("[data-key]").forEach(b=>b.classList.remove("pressed"));
+}
+
+function showGameUI(){
+ $("menu").style.display="none";
+ $("overlay").style.display="none";
+ $("hud").style.display="flex";
+ $("controls").style.display="flex";
+ $("lookHint").style.display="block";
+}
+
 function initSocket(){
  if(typeof window.io!=="function"){
-  setMessage("Не загрузился Socket.IO. Проверь сервер Render.");
+  setMessage("Сервер мультиплеера не загружен. Одиночка и боты доступны.");
   return;
  }
-
  socket=io();
 
- socket.on("connect",()=>setMessage("Сервер подключён. Можно создавать комнату."));
- socket.on("connect_error",()=>setMessage("Нет связи с сервером. Проверь server.js на Render."));
+ socket.on("connect",()=>setMessage("Сервер подключён."));
+ socket.on("connect_error",()=>setMessage("Нет связи с сервером. Одиночная игра доступна."));
  socket.on("disconnect",()=>toast("Соединение с сервером потеряно."));
 
  socket.on("room:update",data=>{
   const previousStatus=room?.status;
   room=data;
-  chosen=data.game;
+  chosen=data.game||chosen;
   isHost=data.hostId===socket.id;
   applyRoom(data);
 
   if(data.status==="playing"&&(!started||previousStatus!=="playing")){
+   mode="multi";localGame=false;
    startGame(data.game);
   }
   if(data.status==="lobby"&&started)showLobby();
  });
 
- socket.on("game:started",data=>startGame(data.game));
+ socket.on("game:started",data=>{
+  mode="multi";localGame=false;
+  startGame(data.game);
+ });
+
  socket.on("player:moved",data=>updateRemote(data));
 
  socket.on("game:event",event=>{
@@ -188,136 +230,172 @@ function initSocket(){
  });
 }
 
+document.querySelectorAll("[data-mode]").forEach(button=>{
+ button.onclick=()=>{
+  mode=button.dataset.mode;
+  document.querySelectorAll("[data-mode]").forEach(b=>b.classList.toggle("active",b===button));
+  $("multiFields").style.display=mode==="multi"?"block":"none";
+  $("play").style.display=mode==="multi"?"none":"block";
+  setMessage(mode==="solo"?"Одиночная игра — сервер не нужен.":mode==="bots"?"Сразись с компьютерными соперниками!":"Создай комнату или введи код друга.");
+ };
+});
+
 document.querySelectorAll("[data-game]").forEach(button=>{
- button.addEventListener("click",()=>{
+ button.onclick=()=>{
   chosen=button.dataset.game;
   document.querySelectorAll("[data-game]").forEach(b=>b.classList.toggle("active",b===button));
-
   if(room&&isHost&&socket){
    socket.emit("game:select",{game:chosen},r=>{
     if(r&&!r.ok)toast(r.error||"Не удалось выбрать игру");
    });
   }
- });
+ };
 });
+
+$("play").onclick=()=>{
+ localGame=true;
+ room=null;
+ roomCode="";
+ startLocal(mode==="bots");
+};
 
 $("create").onclick=()=>{
  if(!socket||!socket.connected){
-  setMessage("Нет соединения с сервером. Обнови страницу и проверь Render.");
+  setMessage("Сервер не подключён. Проверь Render и попробуй снова.");
   return;
  }
-
  socket.emit("room:create",{name:$("name").value,game:chosen},r=>{
-  if(!r||!r.ok){
-   setMessage(r?.error||"Не удалось создать комнату");
-   return;
-  }
-  roomCode=r.code;
-  isHost=true;
-  enterRoom();
+  if(!r||!r.ok){setMessage(r?.error||"Не удалось создать комнату");return;}
+  roomCode=r.code;isHost=true;mode="multi";localGame=false;enterRoom();
  });
 };
 
 $("join").onclick=()=>{
  if(!socket||!socket.connected){
-  setMessage("Нет соединения с сервером. Обнови страницу и проверь Render.");
+  setMessage("Сервер не подключён. Проверь Render и попробуй снова.");
   return;
  }
-
  socket.emit("room:join",{
   name:$("name").value,
   code:$("code").value.trim().toUpperCase()
  },r=>{
-  if(!r||!r.ok){
-   setMessage(r?.error||"Не удалось войти");
-   return;
-  }
-  roomCode=r.code;
-  isHost=!!r.isHost;
-  enterRoom();
+  if(!r||!r.ok){setMessage(r?.error||"Не удалось войти");return;}
+  roomCode=r.code;isHost=!!r.isHost;mode="multi";localGame=false;enterRoom();
  });
 };
 
 $("copy").onclick=async()=>{
- try{
-  await navigator.clipboard.writeText(roomCode);
-  toast("Код скопирован: "+roomCode);
- }catch(e){
-  toast("Код комнаты: "+roomCode);
- }
+ if(!roomCode){toast("Ты играешь локально.");return;}
+ try{await navigator.clipboard.writeText(roomCode);toast("Код скопирован: "+roomCode);}
+ catch(e){toast("Код комнаты: "+roomCode);}
 };
 
 $("start").onclick=()=>{
- if(socket){
-  socket.emit("game:start",{},r=>{
-   if(r&&!r.ok)toast(r.error||"Не удалось начать");
-  });
- }
+ if(localGame){startGame(chosen);return;}
+ if(socket)socket.emit("game:start",{},r=>{
+  if(r&&!r.ok)toast(r.error||"Не удалось начать");
+ });
 };
-
-// Возврат в мир ожидания без перезагрузки страницы.
-function returnToWorld(){
- started=false;
- alive=true;
- finished=false;
- velocityY=0;
- onGround=true;
- $("overlay").style.display="none";
- $("menu").style.display="none";
- $("hud").style.display="flex";
- $("controls").style.display="flex";
- $("lookHint").style.display="block";
-
- if(scene){
-  buildWorld(chosen);
-  syncRemotes(room?.players||[]);
- }
-
- $("status").textContent="Лобби — можно начать новый раунд";
- if(room)applyRoom(room);
-}
-
-$("world").onclick=returnToWorld;
-$("again").onclick=returnToWorld;
-$("exit").onclick=()=>location.reload();
 
 function enterRoom(){
  try{
   if(typeof THREE==="undefined")throw new Error("Three.js не загрузился");
   if(!renderer)init3D();
   if(!renderer||!scene||!camera)throw new Error("3D-сцена не создалась");
+  showGameUI();
+  $("roomLabel").textContent="Комната "+roomCode;
+  if(room)applyRoom(room);
+  buildWorld(chosen);
+ }catch(err){
+  console.error(err);
+  $("menu").style.display="grid";
+  $("hud").style.display="none";
+  $("controls").style.display="none";
+  setMessage("Ошибка 3D: "+(err?.message||err));
+ }
+}
 
+function startLocal(withBots){
+ localGame=true;
+ room=null;
+ try{
+  if(typeof THREE==="undefined")throw new Error("Не удалось загрузить Three.js. Проверь интернет.");
+  if(!renderer)init3D();
+  showGameUI();
+  $("roomLabel").textContent=withBots?"AI WORLD • БОТЫ":"AI WORLD • ОДИНОЧКА";
+  $("start").style.display="inline-block";
+  $("start").textContent="Начать заново";
+  buildWorld(chosen);
+  makeBots(withBots?4:0);
+  started=true;
+  alive=true;
+  finished=false;
+  toast(withBots?"Боты готовы! Доберись до финиша.":"Мир запущен! Управление уже работает.");
+  $("status").textContent="ИГРА: "+GAME_NAMES[chosen];
+ }catch(err){
+  console.error(err);
+  $("menu").style.display="grid";
+  setMessage("Ошибка запуска: "+(err?.message||err));
+ }
+}
+
+function returnToWorld(){
+ resetKeys();
+ velocityY=0;
+ onGround=true;
+ alive=true;
+ finished=false;
+ $("overlay").style.display="none";
+
+ if(mode==="multi"&&room){
+  started=false;
   $("menu").style.display="none";
   $("hud").style.display="flex";
   $("controls").style.display="flex";
   $("lookHint").style.display="block";
-  $("roomLabel").textContent="Комната "+roomCode;
-
-  if(room)applyRoom(room);
- }catch(err){
-  console.error("Ошибка запуска 3D:",err);
-  $("menu").style.display="grid";
-  $("hud").style.display="none";
-  $("controls").style.display="none";
-  $("lookHint").style.display="none";
-  setMessage("Ошибка 3D: "+(err?.message||err)+". Обнови страницу и попробуй снова.");
+  if(scene)buildWorld(chosen);
+  $("status").textContent="Лобби — можно начать новый раунд";
+  applyRoom(room);
+ }else{
+  localGame=true;
+  started=true;
+  if(scene)buildWorld(chosen);
+  makeBots(mode==="bots"?4:0);
+  showGameUI();
+  $("roomLabel").textContent=mode==="bots"?"AI WORLD • БОТЫ":"AI WORLD • ОДИНОЧКА";
+  $("status").textContent="Мир запущен — управление включено";
  }
 }
 
+$("world").onclick=returnToWorld;
+$("again").onclick=returnToWorld;
+$("retry").onclick=()=>{
+ if(mode==="multi"&&room){
+  returnToWorld();
+ }else{
+  startLocal(mode==="bots");
+ }
+};
+$("exit").onclick=()=>{
+ resetKeys();
+ $("menu").style.display="grid";
+ $("hud").style.display="none";
+ $("controls").style.display="none";
+ $("lookHint").style.display="none";
+ $("overlay").style.display="none";
+ started=false;
+};
+
 function applyRoom(data){
  if(!data)return;
-
  $("roomLabel").textContent="Комната "+data.code+" • "+(GAME_NAMES[data.game]||data.game);
  $("status").textContent=data.status==="playing"?"РАУНД ИДЁТ":"Лобби — ждём старт";
  $("start").style.display=data.hostId===socket?.id?"inline-block":"none";
  $("start").textContent=data.status==="playing"?"Перезапустить":"Начать";
-
- $("players").innerHTML=data.players.map(p=>
-  (p.id===data.hostId?"👑 ":"")+safeText(p.name)+
-  (p.finished?" 🏆":(!p.alive?" ❌":""))
+ $("players").innerHTML=(data.players||[]).map(p=>
+  (p.id===data.hostId?"👑 ":"")+safeText(p.name)+(p.finished?" 🏆":(!p.alive?" ❌":""))
  ).join("<br>");
-
- if(scene)syncRemotes(data.players);
+ if(scene)syncRemotes(data.players||[]);
 }
 
 function material(color,roughness=.82){
@@ -325,62 +403,40 @@ function material(color,roughness=.82){
 }
 
 function addBox(x,y,z,sx,sy,sz,color,solid=true){
- const mesh=new THREE.Mesh(
-  new THREE.BoxGeometry(sx,sy,sz),
-  material(color)
- );
+ const mesh=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),material(color));
  mesh.position.set(x,y,z);
  mesh.castShadow=true;
  mesh.receiveShadow=true;
  scene.add(mesh);
  worldMeshes.push(mesh);
-
  if(solid)platforms.push({x,y,z,sx,sy,sz,mesh});
  return mesh;
 }
 
 function makeAvatar(color){
  const group=new THREE.Group();
-
- const body=new THREE.Mesh(
-  new THREE.BoxGeometry(.72,.85,.42),
-  material(color)
- );
+ const body=new THREE.Mesh(new THREE.BoxGeometry(.72,.85,.42),material(color));
  body.position.y=1;
  body.castShadow=true;
  group.add(body);
-
- const head=new THREE.Mesh(
-  new THREE.BoxGeometry(.53,.48,.5),
-  material(0xffd2a6)
- );
+ const head=new THREE.Mesh(new THREE.BoxGeometry(.53,.48,.5),material(0xffd2a6));
  head.position.y=1.68;
  head.castShadow=true;
  group.add(head);
-
  const legs=material(0x202b45);
-
  for(const x of [-.2,.2]){
-  const leg=new THREE.Mesh(
-   new THREE.BoxGeometry(.23,.5,.25),
-   legs
-  );
+  const leg=new THREE.Mesh(new THREE.BoxGeometry(.23,.5,.25),legs);
   leg.position.set(x,.4,0);
   group.add(leg);
  }
-
  return group;
 }
 
 function init3D(){
- if(typeof THREE==="undefined")throw new Error("Three.js не загрузился");
-
  scene=new THREE.Scene();
  scene.background=new THREE.Color(0x87b6e8);
  scene.fog=new THREE.Fog(0x87b6e8,45,110);
-
  camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.1,300);
-
  renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));
  renderer.setSize(innerWidth,innerHeight);
@@ -389,7 +445,6 @@ function init3D(){
  document.body.appendChild(renderer.domElement);
 
  scene.add(new THREE.HemisphereLight(0xffffff,0x58647b,2));
-
  const sun=new THREE.DirectionalLight(0xffffff,2);
  sun.position.set(-12,20,10);
  scene.add(sun);
@@ -398,7 +453,6 @@ function init3D(){
  playerBody=makeAvatar(0x58a6ff);
  player.add(playerBody);
  scene.add(player);
-
  clock=new THREE.Clock();
  buildWorld(chosen);
 
@@ -409,54 +463,33 @@ function init3D(){
   renderer.setSize(innerWidth,innerHeight);
  });
 
- // ПК: мышь поворачивает камеру.
  renderer.domElement.addEventListener("click",e=>{
-  if(innerWidth>800&&e.button===0){
-   renderer.domElement.requestPointerLock?.();
-  }
+  if(innerWidth>800&&e.button===0)renderer.domElement.requestPointerLock?.();
  });
 
  document.addEventListener("mousemove",e=>{
-  if(document.pointerLockElement===renderer.domElement){
-   yaw-=e.movementX*.0025;
-  }
+  if(document.pointerLockElement===renderer.domElement)yaw-=e.movementX*.0025;
  });
 
- // Телефон: отдельный указатель для поворота камеры.
- // Благодаря pointerId палец на стрелке не сбивает свайп другим пальцем.
  renderer.domElement.addEventListener("pointerdown",e=>{
   if(e.pointerType!=="touch")return;
-
-  lookPointers.set(e.pointerId,{
-   x:e.clientX,
-   y:e.clientY
-  });
-
+  // Не перехватываем касания экранных кнопок: они находятся вне canvas.
+  lookPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
   try{renderer.domElement.setPointerCapture(e.pointerId)}catch(_){}
  });
-
  renderer.domElement.addEventListener("pointermove",e=>{
   if(e.pointerType!=="touch")return;
   const last=lookPointers.get(e.pointerId);
   if(!last)return;
-
   const dx=e.clientX-last.x;
   yaw-=dx*.008;
-
-  lookPointers.set(e.pointerId,{
-   x:e.clientX,
-   y:e.clientY
-  });
+  lookPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
  });
-
  const endLook=e=>lookPointers.delete(e.pointerId);
  renderer.domElement.addEventListener("pointerup",endLook);
  renderer.domElement.addEventListener("pointercancel",endLook);
 
- if(!animationStarted){
-  animationStarted=true;
-  animate();
- }
+ if(!animationStarted){animationStarted=true;animate();}
 }
 
 function clearWorld(){
@@ -465,78 +498,61 @@ function clearWorld(){
  platforms=[];
  hazards=[];
  goal=null;
-
- if(lava){
-  scene.remove(lava);
-  lava=null;
- }
+ if(lava){scene.remove(lava);lava=null;}
+ for(const mesh of remotes.values())scene.remove(mesh);
+ remotes.clear();
+ for(const b of bots)scene.remove(b.mesh);
+ bots=[];
 }
 
 function buildWorld(game){
  if(!scene)return;
  clearWorld();
 
- addBox(0,-7,-15,150,1,150,0x263248,true);
- addBox(0,-.15,4,9,.5,9,0x64748b,true);
+ // Большая нижняя площадка — безопасный стартовый остров.
+ addBox(0,-.35,3,12,.7,13,0x64748b,true);
 
+ // Непрерывная стартовая дорожка и отдельные платформы впереди.
  if(game==="parkour"){
+  addBox(0,-.05,-4,5,.5,9,0x48bfe3,true);
   for(let i=0;i<12;i++){
    const x=i%2===0?-2:2;
-   addBox(
-    x,.25+i*.16,-1-i*2.9,
-    3.3,.5,2.5,
-    [0x48bfe3,0x6c8cff,0x9a83ff][i%3]
-   );
+   const z=-8-i*2.65;
+   const y=.12+i*.08;
+   addBox(x,y,z,3.6,.5,2.8,[0x48bfe3,0x6c8cff,0x9a83ff][i%3]);
   }
  }else if(game==="redlight"){
-  for(let i=0;i<13;i++){
-   addBox(0,.05,-1-i*2.7,7,.3,2.4,i%2?0x5f7796:0x89a6c6);
-  }
+  for(let i=0;i<14;i++)addBox(0,.05,-1-i*2.7,7,.5,2.8,i%2?0x5f7796:0x89a6c6);
  }else if(game==="tiles"){
-  for(let i=0;i<11;i++){
+  for(let i=0;i<12;i++){
    for(let j=0;j<3;j++){
     const x=(j-1)*2;
     const z=-1-i*2.8;
-    const missing=Math.random()<.16;
-
-    const tile=addBox(
-     x,.05,z,1.8,.3,2.5,
-     missing?0x8b3648:0x49a9ff,
-     !missing
-    );
-
+    const missing=Math.random()<.13;
+    const tile=addBox(x,.05,z,1.8,.4,2.7,missing?0x8b3648:0x49a9ff,!missing);
     if(missing)tile.visible=false;
     else hazards.push({type:"tile",mesh:tile,used:false,at:0});
    }
   }
  }else if(game==="lava"){
-  for(let i=0;i<13;i++){
-   addBox(i%2?1.8:-1.8,.25+i*.08,-1-i*2.8,3.2,.4,2.5,0xe5a04b);
+  for(let i=0;i<14;i++){
+   const x=i%2?1.7:-1.7;
+   addBox(x,.25+i*.07,-1-i*2.7,3.5,.5,2.7,0xe5a04b);
   }
-
-  lava=new THREE.Mesh(
-   new THREE.BoxGeometry(45,.5,75),
-   material(0xff3c2f,.4)
-  );
+  lava=new THREE.Mesh(new THREE.BoxGeometry(45,.5,75),material(0xff3c2f,.4));
   lava.position.set(0,-3,-12);
   scene.add(lava);
  }else if(game==="obstacles"){
-  for(let i=0;i<12;i++){
-   const z=-1-i*2.9;
-   addBox(0,.05,z,7,.3,2.5,0x7c91b1);
-
-   const bar=addBox(
-    i%2?1.4:-1.4,1.15,z,
-    1.3,1.7,.65,0xf16b7d,false
-   );
-
+  for(let i=0;i<14;i++){
+   const z=-1-i*2.7;
+   addBox(0,.05,z,7,.5,2.7,0x7c91b1);
+   const bar=addBox(i%2?1.4:-1.4,1.15,z,1.3,1.7,.65,0xf16b7d,false);
    hazards.push({type:"bar",mesh:bar,z});
   }
  }
+ goal=addBox(0,.2,-39,10,.5,4,0x35d486,false);
 
- goal=addBox(0,.2,-37,9,.5,4,0x35d486,false);
-
- player.position.set(0,.25,4);
+ player.position.set(0,.02,3);
  velocityY=0;
  onGround=true;
  alive=true;
@@ -549,51 +565,76 @@ function showLobby(){
  started=false;
  $("overlay").style.display="none";
  $("status").textContent="Лобби — ждём старт";
-
- if(scene){
-  buildWorld(chosen);
-  syncRemotes(room?.players||[]);
- }
+ if(scene){buildWorld(chosen);syncRemotes(room?.players||[]);}
 }
 
 function startGame(game){
  chosen=VALID_GAMES.includes(game)?game:"parkour";
  if(!scene)return;
-
  started=true;
  alive=true;
  finished=false;
+ resetKeys();
  buildWorld(chosen);
-
+ if(mode==="bots")makeBots(4);
  $("overlay").style.display="none";
  $("status").textContent="ИГРА: "+GAME_NAMES[chosen];
- toast("Раунд начался! Доберись до финиша!");
+ toast("Раунд начался! Управление включено.");
+}
+
+function makeBots(count){
+ for(const b of bots)scene.remove(b.mesh);
+ bots=[];
+ if(!scene||count===0)return;
+ const colors=[0xff9b54,0x72e0a0,0xd18cff,0xff718b,0xf6d365];
+ for(let i=0;i<count;i++){
+  const mesh=makeAvatar(colors[i%colors.length]);
+  mesh.position.set((i%2?1:-1)*(1+i*.35),.02,4+i*1.2);
+  scene.add(mesh);
+  bots.push({
+   mesh,phase:Math.random()*3,
+   speed:2.2+Math.random()*1.3,
+   lane:i%2?1:-1,
+   jumpTimer:Math.random()*2
+  });
+ }
+}
+
+function updateBots(dt,time){
+ for(const b of bots){
+  if(!b.mesh.visible)continue;
+  b.mesh.position.z-=b.speed*dt;
+  b.phase+=dt;
+  b.jumpTimer-=dt;
+  if(b.jumpTimer<=0){
+   b.mesh.position.y=.25+Math.abs(Math.sin(b.phase*4))*.55;
+   b.jumpTimer=1.5+Math.random()*2;
+  }else{
+   b.mesh.position.y=.02+Math.abs(Math.sin(b.phase*4))*.22;
+  }
+  b.mesh.position.x=b.lane*(1.4+Math.sin(time*.7+b.phase)*.65);
+  b.mesh.rotation.y=b.lane>0?Math.PI:0;
+  if(b.mesh.position.z<-40){
+   b.mesh.position.z=4+Math.random()*4;
+   b.mesh.position.x=b.lane*1.5;
+  }
+ }
 }
 
 function syncRemotes(players){
  if(!scene)return;
-
- const ids=new Set(
-  players.filter(p=>p.id!==socket?.id).map(p=>p.id)
- );
-
+ const ids=new Set(players.filter(p=>p.id!==socket?.id).map(p=>p.id));
  for(const [id,mesh] of remotes){
-  if(!ids.has(id)){
-   scene.remove(mesh);
-   remotes.delete(id);
-  }
+  if(!ids.has(id)){scene.remove(mesh);remotes.delete(id);}
  }
-
  for(const p of players){
   if(p.id===socket?.id)continue;
-
   if(!remotes.has(p.id)){
    const color=Number.parseInt(String(p.color||"#ffbb55").slice(1),16)||0xffbb55;
    const mesh=makeAvatar(color);
    scene.add(mesh);
    remotes.set(p.id,mesh);
   }
-
   updateRemote(p);
  }
 }
@@ -601,7 +642,6 @@ function syncRemotes(players){
 function updateRemote(p){
  const mesh=remotes.get(p.id);
  if(!mesh)return;
-
  mesh.position.set(p.x,p.y,p.z);
  mesh.rotation.y=p.yaw||0;
  mesh.visible=p.alive!==false;
@@ -609,29 +649,19 @@ function updateRemote(p){
 
 function finishRound(won,reason){
  if(!alive)return;
-
  alive=false;
  finished=won;
-
- if(socket){
-  socket.emit("game:event",{
-   type:won?"finished":"eliminated",
-   detail:reason||""
-  });
-
+ resetKeys();
+ if(socket&&!localGame){
+  socket.emit("game:event",{type:won?"finished":"eliminated",detail:reason||""});
   socket.emit("player:move",{
-   x:player.position.x,
-   y:player.position.y,
-   z:player.position.z,
-   yaw,alive,finished
+   x:player.position.x,y:player.position.y,z:player.position.z,yaw,alive,finished
   });
  }
-
  $("resultTitle").textContent=won?"🏆 ПОБЕДА!":"💥 ТЫ ВЫБЫЛ";
  $("resultText").textContent=won
   ?"Ты добрался до финиша!"
-  :"Ты проиграл: "+(reason||"попробуй ещё раз")+". Вернись в мир или дождись нового раунда.";
-
+  :"Причина: "+(reason||"попробуй ещё раз")+". Нажми «В мир» или «Заново».";
  $("overlay").style.display="grid";
  $("status").textContent=won?"ФИНИШ!":"ВЫБЫЛ";
 }
@@ -640,14 +670,31 @@ function jump(){
  if(started&&alive&&onGround){
   velocityY=8.2;
   onGround=false;
-  if(socket)socket.emit("game:event",{type:"jump"});
+  if(socket&&!localGame)socket.emit("game:event",{type:"jump"});
  }
+}
+
+// Проверяем приземление по верхней поверхности платформы.
+// Старое положение ног должно быть выше платформы, новое — на её уровне.
+function resolveGround(oldX,oldY,oldZ,newX,newZ){
+ let landing=null;
+ if(velocityY>0)return null;
+ for(const p of platforms){
+  if(!p.mesh.visible)continue;
+  const top=p.y+p.sy/2;
+  const withinX=Math.abs(newX-p.x)<=p.sx/2+PLAYER_RADIUS;
+  const withinZ=Math.abs(newZ-p.z)<=p.sz/2+PLAYER_RADIUS;
+  const crossedTop=oldY>=top-.04&&player.position.y<=top+.08;
+  if(withinX&&withinZ&&crossedTop){
+   if(landing===null||top>landing.top)landing={top};
+  }
+ }
+ return landing;
 }
 
 function animate(){
  requestAnimationFrame(animate);
  if(!renderer||!scene||!camera)return;
-
  try{
   const dt=Math.min(clock.getDelta(),.04);
   const time=clock.elapsedTime;
@@ -655,73 +702,72 @@ function animate(){
   if(started&&alive&&player){
    if(chosen==="redlight"){
     redTimer+=dt;
-
     if(redTimer>3.5){
      redTimer=0;
      greenLight=!greenLight;
      toast(greenLight?"🟢 ЗЕЛЁНЫЙ — БЕГИ!":"🔴 КРАСНЫЙ — СТОЙ!");
     }
-
-    $("status").textContent=greenLight
-     ?"🟢 ЗЕЛЁНЫЙ — БЕГИ"
-     :"🔴 КРАСНЫЙ — СТОЙ";
-
+    $("status").textContent=greenLight?"🟢 ЗЕЛЁНЫЙ — БЕГИ":"🔴 КРАСНЫЙ — СТОЙ";
     if(!greenLight&&(keys.forward||keys.back||keys.left||keys.right)){
      finishRound(false,"движение на красный свет");
     }
    }
 
-   // Движение относительно направления камеры.
    const dx0=(keys.right?1:0)-(keys.left?1:0);
    const dz0=(keys.back?1:0)-(keys.forward?1:0);
    const length=Math.hypot(dx0,dz0)||1;
-   const dx=dx0/length;
-   const dz=dz0/length;
+   const dx=dx0/length,dz=dz0/length;
    const speed=6;
-
    const moveX=(dx*Math.cos(yaw)+dz*Math.sin(yaw))*speed*dt;
    const moveZ=(-dx*Math.sin(yaw)+dz*Math.cos(yaw))*speed*dt;
+
+   const oldX=player.position.x;
+   const oldY=player.position.y;
+   const oldZ=player.position.z;
 
    if(!(chosen==="redlight"&&!greenLight)){
     player.position.x+=moveX;
     player.position.z+=moveZ;
    }
 
-   player.position.x=Math.max(-7,Math.min(7,player.position.x));
+   player.position.x=Math.max(-5.2,Math.min(5.2,player.position.x));
 
-   const oldY=player.position.y;
-   velocityY-=18*dt;
+   velocityY-=20*dt;
    player.position.y+=velocityY*dt;
    onGround=false;
 
-   for(const p of platforms){
-    if(!p.mesh.visible)continue;
+   // Не даём персонажу провалиться через платформу при быстром падении.
+   const landing=resolveGround(oldX,oldY,oldZ,player.position.x,player.position.z);
+   if(landing){
+    player.position.y=landing.top;
+    velocityY=0;
+    onGround=true;
+   }
 
-    const withinX=Math.abs(player.position.x-p.x)<p.sx/2+.24;
-    const withinZ=Math.abs(player.position.z-p.z)<p.sz/2+.24;
-    const top=p.y+p.sy/2;
-
-    if(withinX&&withinZ&&velocityY<=0&&oldY>=top-.06&&player.position.y<=top+.35){
-     player.position.y=top;
-     velocityY=0;
-     onGround=true;
+   // Если приземлился и стоишь, удерживаем персонажа на поверхности.
+   if(!onGround&&velocityY<=0){
+    for(const p of platforms){
+     if(!p.mesh.visible)continue;
+     const top=p.y+p.sy/2;
+     const withinX=Math.abs(player.position.x-p.x)<=p.sx/2+PLAYER_RADIUS;
+     const withinZ=Math.abs(player.position.z-p.z)<=p.sz/2+PLAYER_RADIUS;
+     if(withinX&&withinZ&&Math.abs(player.position.y-top)<.12){
+      player.position.y=top;
+      velocityY=0;
+      onGround=true;
+      break;
+     }
     }
    }
 
    if(chosen==="tiles"){
     for(const h of hazards){
      if(h.used)continue;
-
-     if(
-      Math.abs(player.position.x-h.mesh.position.x)<.65&&
-      Math.abs(player.position.z-h.mesh.position.z)<.75&&
-      onGround
-     ){
-      h.used=true;
-      h.at=time;
+     if(Math.abs(player.position.x-h.mesh.position.x)<.65&&
+        Math.abs(player.position.z-h.mesh.position.z)<.85&&onGround){
+      h.used=true;h.at=time;
      }
     }
-
     for(const h of hazards){
      if(h.used&&time-h.at>1&&h.mesh.visible){
       h.mesh.visible=false;
@@ -733,11 +779,9 @@ function animate(){
 
    if(chosen==="obstacles"){
     for(const h of hazards){
-     if(
-      Math.abs(player.position.z-h.z)<.45&&
-      Math.abs(player.position.x-h.mesh.position.x)<.85&&
-      player.position.y<1.8
-     ){
+     if(Math.abs(player.position.z-h.z)<.45&&
+        Math.abs(player.position.x-h.mesh.position.x)<.85&&
+        player.position.y<1.8){
       finishRound(false,"столкновение с препятствием");
       break;
      }
@@ -746,107 +790,77 @@ function animate(){
 
    if(chosen==="lava"&&lava){
     lava.position.y=Math.min(1,lava.position.y+dt*.12);
-
     if(player.position.y<lava.position.y+.8&&player.position.z<2){
      finishRound(false,"лава догнала тебя");
     }
    }
 
    if(player.position.y<-5)finishRound(false,"падение с платформы");
-   if(player.position.z<-35)finishRound(true,"финиш");
-
+   if(player.position.z<-40)finishRound(true,"финиш");
    player.rotation.y=yaw;
 
-   if(socket&&time-lastSend>.06){
+   if(socket&&!localGame&&socket.connected&&time-lastSend>.06){
     lastSend=time;
     socket.volatile.emit("player:move",{
-     x:player.position.x,
-     y:player.position.y,
-     z:player.position.z,
-     yaw,alive,finished
+     x:player.position.x,y:player.position.y,z:player.position.z,yaw,alive,finished
     });
    }
   }
 
+  if(mode==="bots"&&started)updateBots(dt,time);
+
   if(player){
-   const target=new THREE.Vector3(
-    player.position.x,
-    player.position.y+1.15,
-    player.position.z
-   );
-
-   const behind=new THREE.Vector3(
-    Math.sin(yaw)*7,
-    4,
-    Math.cos(yaw)*7
-   );
-
-   camera.position.lerp(target.clone().add(behind),.14);
+   const target=new THREE.Vector3(player.position.x,player.position.y+1.15,player.position.z);
+   // Камера находится позади игрока с учётом направления взгляда.
+   const behind=new THREE.Vector3(-Math.sin(yaw)*7,3.4,Math.cos(yaw)*7);
+   camera.position.lerp(target.clone().add(behind),.16);
    camera.lookAt(target);
   }
 
   renderer.render(scene,camera);
  }catch(err){
   console.error("Ошибка игрового цикла:",err);
-  if($("menu").style.display==="none"){
-   $("menu").style.display="grid";
-   $("hud").style.display="none";
-   $("controls").style.display="none";
-   $("lookHint").style.display="none";
-   setMessage("Ошибка 3D: "+(err?.message||err)+". Обнови страницу.");
-  }
  }
 }
 
-// Клавиатура ПК.
+const keyMap={
+ KeyW:"forward",ArrowUp:"forward",
+ KeyS:"back",ArrowDown:"back",
+ KeyA:"left",ArrowLeft:"left",
+ KeyD:"right",ArrowRight:"right"
+};
+
 document.addEventListener("keydown",e=>{
- const map={
-  KeyW:"forward",ArrowUp:"forward",
-  KeyS:"back",ArrowDown:"back",
-  KeyA:"left",ArrowLeft:"left",
-  KeyD:"right",ArrowRight:"right"
- };
-
- if(map[e.code]){
-  keys[map[e.code]]=true;
+ if(keyMap[e.code]){
+  keys[keyMap[e.code]]=true;
   e.preventDefault();
  }
-
- if(e.code==="Space"){
-  e.preventDefault();
-  jump();
- }
+ if(e.code==="Space"){e.preventDefault();jump();}
 });
 
 document.addEventListener("keyup",e=>{
- const map={
-  KeyW:"forward",ArrowUp:"forward",
-  KeyS:"back",ArrowDown:"back",
-  KeyA:"left",ArrowLeft:"left",
-  KeyD:"right",ArrowRight:"right"
- };
-
- if(map[e.code])keys[map[e.code]]=false;
+ if(keyMap[e.code])keys[keyMap[e.code]]=false;
 });
 
-// Мобильные кнопки: удержание работает, даже если палец немного сместился.
+window.addEventListener("blur",resetKeys);
+document.addEventListener("visibilitychange",()=>{
+ if(document.hidden)resetKeys();
+});
+
 document.querySelectorAll("[data-key]").forEach(button=>{
  const key=button.dataset.key;
-
- const down=e=>{
+ button.addEventListener("pointerdown",e=>{
   e.preventDefault();
   keys[key]=true;
   try{button.setPointerCapture(e.pointerId)}catch(_){}
- };
-
+ });
  const up=e=>{
   e.preventDefault();
   keys[key]=false;
  };
-
- button.addEventListener("pointerdown",down);
  button.addEventListener("pointerup",up);
  button.addEventListener("pointercancel",up);
+ button.addEventListener("lostpointercapture",()=>keys[key]=false);
 });
 
 $("jump").addEventListener("pointerdown",e=>{
