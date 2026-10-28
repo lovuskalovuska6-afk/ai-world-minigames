@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -577,7 +576,6 @@ function enterRoom(){
 
   buildWorld(chosen);
 
-  // buildWorld очищает старые модели, поэтому восстанавливаем игроков комнаты.
   if(room)syncRemotes(room.players||[]);
 
   hubMode=false;
@@ -641,31 +639,76 @@ function returnToWorld(){
 $("world").onclick=returnToWorld;
 $("again").onclick=returnToWorld;
 
-$("retry").onclick=()=>{
+/*
+ * ЛИЧНОЕ ВОЗРОЖДЕНИЕ
+ * Перестраивает сцену только в этом браузере.
+ * Не отправляет game:start и не запускает общий раунд.
+ */
+function respawnLocalPlayer(){
+ if(!scene||!player){
+  toast("Игровой мир ещё не загружен.");
+  return;
+ }
+
  resetKeys();
+
+ // Сбрасываем мир только у этого клиента:
+ // позиции платформ, исчезнувшие плитки и уровень лавы.
+ buildWorld(chosen);
+
+ // buildWorld очищает модели других игроков на нашей сцене,
+ // поэтому добавляем их обратно из последнего состояния комнаты.
+ if(mode==="multi"&&room){
+  syncRemotes(room.players||[]);
+ }
+
+ // Возвращаем только своего персонажа на старт.
+ player.position.set(0,.02,3);
+ player.rotation.y=yaw+Math.PI;
+
  velocityY=0;
  onGround=true;
+ alive=true;
+ finished=false;
+ started=true;
+ hubMode=false;
 
+ redTimer=0;
+ greenLight=true;
+ redPhaseDuration=2+Math.random()*3;
+
+ $("overlay").style.display="none";
+ $("status").textContent="ИГРА: "+GAME_NAMES[chosen];
+
+ // Сообщаем серверу, что именно этот игрок снова активен.
+ // События game:start здесь намеренно нет.
+ if(socket&&!localGame&&socket.connected){
+  socket.emit("player:move",{
+   x:player.position.x,
+   y:player.position.y,
+   z:player.position.z,
+   yaw,
+   alive:true,
+   finished:false
+  });
+ }
+
+ toast("Ты возродился! Остальные продолжают играть.");
+}
+
+$("retry").onclick=()=>{
  if(mode==="multi"&&room){
   if(!socket||!socket.connected){
    toast("Нет соединения с сервером. Переподключись к комнате.");
    return;
   }
 
-  if(!isHost){
-   toast("Перезапустить раунд может создатель комнаты.");
-   return;
-  }
-
-  socket.emit("game:start",{},response=>{
-   if(!response||!response.ok){
-    toast(response?.error||"Не удалось перезапустить раунд.");
-   }
-  });
-
+  // В мультиплеере возрождаем только этого игрока.
+  respawnLocalPlayer();
   return;
  }
 
+ // В одиночке и режиме с ботами остаётся обычный перезапуск.
  startLocal(mode==="bots");
 };
 
@@ -695,7 +738,6 @@ function applyRoom(data){
  $("start").style.display=isHost?"inline-block":"none";
  $("start").textContent=data.status==="playing"?"Перезапустить":"Начать";
 
- // Кнопка доступа видна только создателю.
  $("roomSettings").style.display=isHost?"inline-block":"none";
  $("roomSettings").textContent=data.isPublic?"🌐 Публичная":"🔒 Приватная";
  $("roomSettings").title=isHost?"Нажми, чтобы изменить доступ":"Только создатель может менять доступ";
@@ -1028,7 +1070,6 @@ function showLobby(){
 
  if(scene){
   buildWorld(chosen);
-  // После очистки мира обязательно возвращаем игроков комнаты.
   syncRemotes(room?.players||[]);
  }
 }
@@ -1046,8 +1087,6 @@ function startGame(game){
  resetKeys();
  buildWorld(chosen);
 
- // Важно: buildWorld удаляет старые модели игроков.
- // Создаём их заново после перестройки сцены.
  if(mode==="multi"&&room){
   syncRemotes(room.players||[]);
  }
@@ -1166,7 +1205,7 @@ function finishRound(won,reason){
    y:player.position.y,
    z:player.position.z,
    yaw,
-   alive,
+   alive:false,
    finished
   });
  }
@@ -1492,4 +1531,4 @@ initSocket();
 })();
 </script>
 </body>
-</html>
+ </html>
