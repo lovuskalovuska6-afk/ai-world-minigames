@@ -73,7 +73,8 @@ function roomData(room) {
     status: room.status,
     isPublic: room.isPublic,
     hostId: room.hostId,
-    hostName: room.players.get(room.hostId)?.name || "Игрок",
+    hostName:
+      room.players.get(room.hostId)?.name || "Игрок",
     maxPlayers: MAX_PLAYERS,
     players: [...room.players.values()]
   };
@@ -109,8 +110,17 @@ function updateRoom(room) {
   broadcastPublicRooms();
 }
 
+function getSocketRoom(socket) {
+  const code = socket.data.roomCode;
+
+  if (!code) return null;
+
+  return rooms.get(code) || null;
+}
+
 function leaveRoom(socket) {
   const code = socket.data.roomCode;
+
   if (!code) return;
 
   const room = rooms.get(code);
@@ -128,6 +138,7 @@ function leaveRoom(socket) {
     return;
   }
 
+  // Если создатель вышел, передаём права следующему игроку.
   if (room.hostId === socket.id) {
     room.hostId = room.players.keys().next().value;
   }
@@ -160,6 +171,7 @@ function joinRoom(socket, room, name, reply) {
 
   updateRoom(room);
 
+  // Если комната уже запущена, новый игрок получает событие старта.
   if (room.status === "playing") {
     socket.emit("game:started", {
       game: room.game,
@@ -169,6 +181,7 @@ function joinRoom(socket, room, name, reply) {
 }
 
 io.on("connection", socket => {
+  // Получение списка публичных комнат.
   socket.on("rooms:list", (reply = () => {}) => {
     reply({
       ok: true,
@@ -176,6 +189,7 @@ io.on("connection", socket => {
     });
   });
 
+  // Создание комнаты.
   socket.on("room:create", (data = {}, reply = () => {}) => {
     leaveRoom(socket);
 
@@ -209,12 +223,14 @@ io.on("connection", socket => {
       ok: true,
       code,
       isHost: true,
-      isPublic
+      isPublic,
+      room: roomData(room)
     });
 
     updateRoom(room);
   });
 
+  // Вход в комнату по коду.
   socket.on("room:join", (data = {}, reply = () => {}) => {
     const code = String(data.code || "")
       .trim()
@@ -226,6 +242,27 @@ io.on("connection", socket => {
       return reply({
         ok: false,
         error: "Комната не найдена."
+      });
+    }
+
+    // Повторный вход в ту же комнату не создаёт дубликат игрока.
+    if (
+      socket.data.roomCode === code &&
+      room.players.has(socket.id)
+    ) {
+      return reply({
+        ok: true,
+        code,
+        isHost: room.hostId === socket.id,
+        room: roomData(room)
+      });
+    }
+
+    // Не выгоняем игрока из старой комнаты, если новая заполнена.
+    if (room.players.size >= MAX_PLAYERS) {
+      return reply({
+        ok: false,
+        error: "В комнате максимум 12 игроков."
       });
     }
 
@@ -243,6 +280,7 @@ io.on("connection", socket => {
     joinRoom(socket, currentRoom, data.name, reply);
   });
 
+  // Вход в комнату через список публичных комнат.
   socket.on(
     "room:join-public",
     (data = {}, reply = () => {}) => {
@@ -256,6 +294,25 @@ io.on("connection", socket => {
         return reply({
           ok: false,
           error: "Публичная комната больше недоступна."
+        });
+      }
+
+      if (
+        socket.data.roomCode === code &&
+        room.players.has(socket.id)
+      ) {
+        return reply({
+          ok: true,
+          code,
+          isHost: room.hostId === socket.id,
+          room: roomData(room)
+        });
+      }
+
+      if (room.players.size >= MAX_PLAYERS) {
+        return reply({
+          ok: false,
+          error: "В комнате максимум 12 игроков."
         });
       }
 
@@ -274,8 +331,51 @@ io.on("connection", socket => {
     }
   );
 
+  // Изменение публичности комнаты.
+  // Клиент должен отправить:
+  // socket.emit("room:settings", { isPublic: false }, callback)
+  socket.on(
+    "room:settings",
+    (data = {}, reply = () => {}) => {
+      const room = getSocketRoom(socket);
+
+      if (!room) {
+        return reply({
+          ok: false,
+          error: "Нет комнаты."
+        });
+      }
+
+      // Только текущий создатель может менять доступ.
+      if (room.hostId !== socket.id) {
+        return reply({
+          ok: false,
+          error: "Менять доступ может только создатель комнаты."
+        });
+      }
+
+      if (typeof data.isPublic !== "boolean") {
+        return reply({
+          ok: false,
+          error: "Неверная настройка доступа."
+        });
+      }
+
+      room.isPublic = data.isPublic;
+
+      updateRoom(room);
+
+      reply({
+        ok: true,
+        isPublic: room.isPublic,
+        room: roomData(room)
+      });
+    }
+  );
+
+  // Синхронизация положения игроков.
   socket.on("player:move", data => {
-    const room = rooms.get(socket.data.roomCode);
+    const room = getSocketRoom(socket);
     const player = room?.players.get(socket.id);
 
     if (!room || !player || !data) return;
@@ -308,8 +408,9 @@ io.on("connection", socket => {
     });
   });
 
+  // Выбор мини-игры.
   socket.on("game:select", (data = {}, reply = () => {}) => {
-    const room = rooms.get(socket.data.roomCode);
+    const room = getSocketRoom(socket);
 
     if (!room) {
       return reply({
@@ -347,8 +448,9 @@ io.on("connection", socket => {
     reply({ ok: true });
   });
 
+  // Запуск игры.
   socket.on("game:start", (_data, reply = () => {}) => {
-    const room = rooms.get(socket.data.roomCode);
+    const room = getSocketRoom(socket);
 
     if (!room) {
       return reply({
@@ -383,8 +485,10 @@ io.on("connection", socket => {
     reply({ ok: true });
   });
 
+  // События мини-игр.
   socket.on("game:event", data => {
-    const room = rooms.get(socket.data.roomCode);
+    const room = getSocketRoom(socket);
+
     if (!room || !data) return;
 
     const allowed = [
@@ -403,6 +507,7 @@ io.on("connection", socket => {
     });
   });
 
+  // Удаление игрока при отключении.
   socket.on("disconnect", () => {
     leaveRoom(socket);
   });
