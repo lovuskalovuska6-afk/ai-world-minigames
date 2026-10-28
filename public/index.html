@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -13,6 +12,7 @@ button,input{font:inherit;border-radius:12px;border:1px solid var(--line);paddin
 button{font-weight:bold;cursor:pointer;touch-action:manipulation}
 button.primary{background:var(--blue);color:#07101e;border:0}
 button:disabled{opacity:.5;cursor:not-allowed}
+
 #menu{position:fixed;z-index:10;inset:0;display:grid;place-items:center;padding:16px;overflow:auto;background:radial-gradient(ellipse at top,#1b3764,#080c18 70%)}
 .panel{width:min(570px,100%);padding:22px;border:1px solid var(--line);border-radius:23px;background:#111a2df2;box-shadow:0 20px 70px #0008}
 h1{font-size:clamp(28px,7vw,44px);margin:7px 0}
@@ -39,32 +39,67 @@ p{color:#b9c8e4;line-height:1.45}
 .room-card button{flex-shrink:0;padding:9px}
 .public-toggle{display:flex;align-items:center;gap:9px;font-size:13px;color:#dce6ff}
 .public-toggle input{width:18px;height:18px;accent-color:#70a7ff}
+
 #hud{display:none;position:fixed;z-index:3;top:10px;left:10px;right:10px;justify-content:space-between;align-items:flex-start;gap:8px;pointer-events:none}
 .hudbox{background:#09101ee8;border:1px solid #2b3b5b;border-radius:13px;padding:9px 11px;pointer-events:auto}
 #players{font-size:12px;line-height:1.7;color:#dce6ff}
 #status{color:var(--gold);font-weight:bold;margin-top:4px}
 #hud button{padding:9px;font-size:12px;margin:2px}
+
 #controls{display:none;position:fixed;z-index:4;bottom:14px;left:14px;right:14px;align-items:end;justify-content:space-between;pointer-events:none}
 .pad{display:grid;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(2,48px);gap:5px;pointer-events:auto}
 .pad button,.jump{background:#0b1427e8;border:1px solid #6c83b8;user-select:none;-webkit-user-select:none;touch-action:none}
 .up{grid-column:2}.left{grid-column:1;grid-row:2}.down{grid-column:2;grid-row:2}.right{grid-column:3;grid-row:2}
 .jump{width:76px;height:76px;border-radius:50%;font-size:12px;pointer-events:auto}
+
 #lookHint{position:fixed;z-index:2;top:105px;left:50%;transform:translateX(-50%);color:white;background:#09101ebd;padding:7px 11px;border-radius:9px;font-size:12px;display:none;white-space:nowrap;pointer-events:none}
 #overlay{position:fixed;z-index:8;inset:0;display:none;place-items:center;background:#050814c9;padding:18px}
 #overlay .panel{text-align:center}
 #toast{position:fixed;z-index:12;bottom:110px;left:50%;transform:translateX(-50%);background:#111a2d;border:1px solid var(--line);border-radius:12px;padding:11px 15px;display:none;max-width:90%;text-align:center;pointer-events:none}
 
-/* Игровой чат */
+/* Чат — ВСЕГДА СПРАВА СВЕРХУ, В МЕНЮ И В ИГРЕ */
 #chatBox{
- display:none;position:fixed;z-index:6;right:12px;bottom:105px;
- width:min(310px,calc(100vw - 24px));max-height:225px;
- background:#09101ee8;border:1px solid #2b3b5b;border-radius:15px;
- padding:9px;pointer-events:auto;backdrop-filter:blur(8px)
+ display:block;
+ position:fixed;
+ z-index:20;
+ top:12px;
+ right:12px;
+ bottom:auto;
+ width:min(300px,calc(100vw - 24px));
+ max-height:260px;
+ background:#09101ef5;
+ border:1px solid #2b3b5b;
+ border-radius:15px;
+ padding:9px;
+ pointer-events:auto;
+ backdrop-filter:blur(10px);
+ box-shadow:0 8px 30px #0005;
+}
+#chatBox.collapsed #chatContent{display:none}
+#chatHeader{
+ display:flex;
+ align-items:center;
+ justify-content:space-between;
+ gap:8px;
+ margin-bottom:7px;
+ font-weight:bold;
+ font-size:13px;
+}
+#chatCollapse{
+ padding:5px 9px;
+ min-width:34px;
+ border-radius:8px;
+ background:#142746;
 }
 #chatLog{
- height:135px;overflow-y:auto;overflow-wrap:anywhere;
- font-size:12px;line-height:1.4;margin-bottom:8px;
- scrollbar-width:thin;scrollbar-color:#415a83 transparent
+ height:125px;
+ overflow-y:auto;
+ overflow-wrap:anywhere;
+ font-size:12px;
+ line-height:1.4;
+ margin-bottom:8px;
+ scrollbar-width:thin;
+ scrollbar-color:#415a83 transparent;
 }
 .chat-line{margin:4px 0;color:#dce6ff}
 .chat-line strong{color:#ffdb70}
@@ -72,18 +107,40 @@ p{color:#b9c8e4;line-height:1.45}
 #chatInput{width:0;min-width:0;flex:1;padding:10px;font-size:13px}
 #chatSend{padding:9px 12px;background:#70a7ff;color:#07101e;border:0}
 #chatToggle{
- display:none;position:fixed;z-index:7;right:14px;bottom:14px;
- width:60px;height:60px;border-radius:50%;
- background:#142746ed;border:1px solid #6c83b8;font-size:23px
+ display:none;
+ position:fixed;
+ z-index:21;
+ top:12px;
+ right:12px;
+ width:46px;
+ height:46px;
+ border-radius:13px;
+ background:#142746ed;
+ border:1px solid #6c83b8;
+ font-size:21px;
 }
-#chatBox.open{display:block}
 canvas{display:block;position:fixed;inset:0;z-index:0;touch-action:none}
-@media(max-width:480px){
+
+@media(max-width:700px){
  .panel{padding:16px}
  .room-card{align-items:flex-start}
  .room-card button{padding:8px}
- #chatBox{bottom:100px;max-height:205px}
- #chatLog{height:115px}
+
+ #chatBox{
+  top:8px;
+  right:8px;
+  width:min(250px,calc(100vw - 16px));
+  max-height:220px;
+  padding:8px;
+ }
+ #chatLog{height:90px}
+ #chatInput{padding:9px;font-size:12px}
+ #chatSend{padding:8px 11px}
+ #chatToggle{top:8px;right:8px}
+
+ #hud{top:8px;left:8px;right:8px}
+ #hud .hudbox{padding:7px}
+ #hud button{padding:7px;font-size:11px}
 }
 @media(min-width:800px){#controls{opacity:.65}.panel{padding:28px}}
 </style>
@@ -187,17 +244,24 @@ canvas{display:block;position:fixed;inset:0;z-index:0;touch-action:none}
  <button id="jump" class="jump">ПРЫЖОК</button>
 </div>
 
-<!-- Чат -->
+<!-- Чат доступен и в меню, и во время игры -->
 <div id="chatBox">
- <div id="chatLog">
-  <div class="chat-line">💬 Чат готов. Напиши сообщение!</div>
+ <div id="chatHeader">
+  <span>💬 Чат игроков</span>
+  <button id="chatCollapse" type="button" aria-label="Свернуть чат">−</button>
  </div>
- <form id="chatForm">
-  <input id="chatInput" maxlength="160" autocomplete="off" placeholder="Сообщение..." aria-label="Сообщение">
-  <button id="chatSend" type="submit">➤</button>
- </form>
+ <div id="chatContent">
+  <div id="chatLog">
+   <div class="chat-line">Чат готов. Напиши сообщение!</div>
+  </div>
+  <form id="chatForm">
+   <input id="chatInput" maxlength="160" autocomplete="off" placeholder="Сообщение..." aria-label="Сообщение">
+   <button id="chatSend" type="submit">➤</button>
+  </form>
+ </div>
 </div>
-<button id="chatToggle" aria-label="Открыть чат">💬</button>
+
+<button id="chatToggle" type="button" aria-label="Открыть чат">💬</button>
 
 <div id="overlay">
  <div class="panel">
@@ -240,7 +304,6 @@ let toastTimeout=null,animationStarted=false;
 let lookPointers=new Map();
 let selectedRoomTab="code";
 let lastRoomList=[];
-let chatOpen=false;
 
 const PLAYER_RADIUS=.28;
 
@@ -271,10 +334,6 @@ function appendChatMessage(name,message){
  log.scrollTop=log.scrollHeight;
 }
 
-/*
- * Рисуем облачко с сообщением на Canvas и показываем его
- * над головой соответствующего 3D-персонажа.
- */
 function showBubble(avatar,message){
  if(!avatar||!avatar.userData)return;
 
@@ -332,7 +391,8 @@ function showBubble(avatar,message){
 
  if(current)lines.push(current);
 
- let visibleLines=lines.slice(0,3);
+ const visibleLines=lines.slice(0,3);
+
  if(lines.length>3){
   visibleLines[2]=visibleLines[2].slice(0,32)+"…";
  }
@@ -343,7 +403,13 @@ function showBubble(avatar,message){
 
  ctx.fillStyle="rgba(7,13,28,0.94)";
  ctx.beginPath();
- ctx.roundRect(12,top,488,boxHeight,22);
+
+ if(ctx.roundRect){
+  ctx.roundRect(12,top,488,boxHeight,22);
+ }else{
+  ctx.rect(12,top,488,boxHeight);
+ }
+
  ctx.fill();
 
  ctx.strokeStyle="rgba(112,167,255,0.95)";
@@ -430,31 +496,38 @@ $("chatForm").addEventListener("submit",e=>{
 
  sendChatMessage(text);
  input.value="";
- input.blur();
+ input.focus();
 });
 
-$("chatToggle").onclick=()=>{
- chatOpen=!chatOpen;
- $("chatBox").classList.toggle("open",chatOpen);
- $("chatToggle").textContent=chatOpen?"✕":"💬";
+function setChatCollapsed(collapsed){
+ $("chatBox").classList.toggle("collapsed",collapsed);
+ $("chatToggle").style.display=collapsed?"block":"none";
+ $("chatCollapse").textContent=collapsed?"+":"−";
+ $("chatToggle").textContent="💬";
+}
 
- if(chatOpen){
-  $("chatInput").focus();
-  $("chatLog").scrollTop=$("chatLog").scrollHeight;
- }
+$("chatCollapse").onclick=()=>{
+ setChatCollapsed(true);
+};
+
+$("chatToggle").onclick=()=>{
+ setChatCollapsed(false);
+ $("chatInput").focus();
+ $("chatLog").scrollTop=$("chatLog").scrollHeight;
 };
 
 function showChat(){
- $("chatToggle").style.display="block";
- $("chatBox").classList.toggle("open",chatOpen);
- $("chatToggle").textContent=chatOpen?"✕":"💬";
+ $("chatBox").style.display="block";
+ if(!$("chatBox").classList.contains("collapsed")){
+  $("chatToggle").style.display="none";
+ }else{
+  $("chatToggle").style.display="block";
+ }
 }
 
 function hideChat(){
- $("chatBox").classList.remove("open");
- $("chatToggle").style.display="none";
- chatOpen=false;
- $("chatToggle").textContent="💬";
+ // Чат не скрываем при переходе в меню: он должен быть доступен всегда.
+ showChat();
 }
 
 /* ---------- ОСНОВНАЯ ИГРА ---------- */
@@ -648,8 +721,6 @@ function initSocket(){
 
  socket.on("player:moved",data=>updateRemote(data));
 
- /* Получение сообщений от других игроков.
-    Сервер должен пересылать chat:send в событие chat:message. */
  socket.on("chat:message",data=>{
   if(!data)return;
 
@@ -866,7 +937,7 @@ function enterRoom(){
   $("menu").style.display="grid";
   $("hud").style.display="none";
   $("controls").style.display="none";
-  hideChat();
+  showChat();
   setMessage("Ошибка 3D: "+(err?.message||err));
  }
 }
@@ -903,7 +974,7 @@ function startLocal(withBots){
  }catch(err){
   console.error(err);
   $("menu").style.display="grid";
-  hideChat();
+  showChat();
   setMessage("Ошибка запуска: "+(err?.message||err));
  }
 }
@@ -959,7 +1030,9 @@ $("exit").onclick=()=>{
  $("controls").style.display="none";
  $("lookHint").style.display="none";
  $("overlay").style.display="none";
- hideChat();
+
+ // При возвращении в меню чат остаётся открытым и справа сверху.
+ showChat();
 
  started=false;
  hubMode=false;
@@ -1065,7 +1138,6 @@ function makeAvatar(color){
   group.add(leg);
  }
 
- // Создаём пустое облачко заранее; текст появится после сообщения.
  group.userData.chatBubble=null;
  group.userData.chatBubbleUntil=0;
 
@@ -1282,11 +1354,7 @@ function buildWorld(game){
    const safeSide=i%2===0?1:-1;
    const barX=-safeSide*1.35;
 
-   const bar=addBox(
-    barX,1.15,z,
-    4.2,1.7,.65,
-    0xf16b7d,false
-   );
+   const bar=addBox(barX,1.15,z,4.2,1.7,.65,0xf16b7d,false);
 
    hazards.push({type:"bar",mesh:bar,z});
   }
@@ -1722,7 +1790,6 @@ const keyMap={
 };
 
 document.addEventListener("keydown",e=>{
- // Enter в поле чата не должен влиять на движение персонажа.
  if(document.activeElement===$("chatInput"))return;
 
  if(keyMap[e.code]){
@@ -1777,7 +1844,11 @@ $("jump").addEventListener("pointerdown",e=>{
 
 initSocket();
 
+/* Показываем чат сразу при открытии страницы, ещё до запуска игры. */
+setChatCollapsed(false);
+showChat();
+
 })();
 </script>
 </body>
-</html>
+ </html>
