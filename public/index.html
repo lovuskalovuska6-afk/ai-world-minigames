@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -9,9 +10,9 @@
 :root{--bg:#080c18;--panel:#111a2d;--line:#2b3b5b;--blue:#70a7ff;--gold:#ffdb70}
 body{margin:0;background:var(--bg);color:#f5f7ff;font:15px Arial,sans-serif;overflow:hidden}
 button,input{font:inherit;border-radius:12px;border:1px solid var(--line);padding:12px;background:#0b1222;color:white}
-button{font-weight:bold;cursor:pointer;touch-action:none}
+button{font-weight:bold;cursor:pointer;touch-action:manipulation}
 button.primary{background:var(--blue);color:#07101e;border:0}
-button:disabled{opacity:.5}
+button:disabled{opacity:.5;cursor:not-allowed}
 #menu{position:fixed;z-index:10;inset:0;display:grid;place-items:center;padding:16px;overflow:auto;background:radial-gradient(ellipse at top,#1b3764,#080c18 70%)}
 .panel{width:min(570px,100%);padding:22px;border:1px solid var(--line);border-radius:23px;background:#111a2df2;box-shadow:0 20px 70px #0008}
 h1{font-size:clamp(28px,7vw,44px);margin:7px 0}
@@ -26,6 +27,18 @@ p{color:#b9c8e4;line-height:1.45}
 .game,.mode{text-align:left;background:#0b1222;min-height:48px}
 .game.active,.mode.active{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
 #message{margin-top:12px;min-height:18px;color:#ffdb70}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:12px 0}
+.tab{background:#0b1222}
+.tab.active{background:#253b60;border-color:var(--blue)}
+#roomsPanel{display:none;margin-top:10px}
+.room-list{display:grid;gap:8px;max-height:220px;overflow:auto;margin-top:10px}
+.room-card{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left;background:#0b1222;border:1px solid var(--line);padding:12px;border-radius:12px}
+.room-card .room-info{min-width:0;overflow-wrap:anywhere}
+.room-card .room-title{font-weight:bold;color:#fff}
+.room-card .room-meta{font-size:12px;color:#a8b8d8;margin-top:4px}
+.room-card button{flex-shrink:0;padding:9px}
+.public-toggle{display:flex;align-items:center;gap:9px;font-size:13px;color:#dce6ff}
+.public-toggle input{width:18px;height:18px;accent-color:#70a7ff}
 #hud{display:none;position:fixed;z-index:3;top:10px;left:10px;right:10px;justify-content:space-between;align-items:flex-start;gap:8px;pointer-events:none}
 .hudbox{background:#09101ee8;border:1px solid #2b3b5b;border-radius:13px;padding:9px 11px;pointer-events:auto}
 #players{font-size:12px;line-height:1.7;color:#dce6ff}
@@ -33,7 +46,7 @@ p{color:#b9c8e4;line-height:1.45}
 #hud button{padding:9px;font-size:12px;margin:2px}
 #controls{display:none;position:fixed;z-index:4;bottom:14px;left:14px;right:14px;align-items:end;justify-content:space-between;pointer-events:none}
 .pad{display:grid;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(2,48px);gap:5px;pointer-events:auto}
-.pad button,.jump{background:#0b1427e8;border:1px solid #6c83b8;user-select:none;-webkit-user-select:none}
+.pad button,.jump{background:#0b1427e8;border:1px solid #6c83b8;user-select:none;-webkit-user-select:none;touch-action:none}
 .up{grid-column:2}.left{grid-column:1;grid-row:2}.down{grid-column:2;grid-row:2}.right{grid-column:3;grid-row:2}
 .jump{width:76px;height:76px;border-radius:50%;font-size:12px;pointer-events:auto}
 #lookHint{position:fixed;z-index:2;top:105px;left:50%;transform:translateX(-50%);color:white;background:#09101ebd;padding:7px 11px;border-radius:9px;font-size:12px;display:none;white-space:nowrap;pointer-events:none}
@@ -41,6 +54,7 @@ p{color:#b9c8e4;line-height:1.45}
 #overlay .panel{text-align:center}
 #toast{position:fixed;z-index:12;bottom:110px;left:50%;transform:translateX(-50%);background:#111a2d;border:1px solid var(--line);border-radius:12px;padding:11px 15px;display:none;max-width:90%;text-align:center;pointer-events:none}
 canvas{display:block;position:fixed;inset:0;z-index:0;touch-action:none}
+@media(max-width:480px){.panel{padding:16px}.room-card{align-items:flex-start}.room-card button{padding:8px}}
 @media(min-width:800px){#controls{opacity:.65}.panel{padding:28px}}
 </style>
 </head>
@@ -80,12 +94,33 @@ canvas{display:block;position:fixed;inset:0;z-index:0;touch-action:none}
   <button id="play" class="primary" style="width:100%">Играть</button>
 
   <div id="multiFields" style="display:none">
-   <div class="field"><button id="create" class="primary">Создать комнату</button></div>
-   <div class="field">
-    <label for="code">Код комнаты друга</label>
-    <div class="line">
-     <input id="code" maxlength="8" placeholder="Код комнаты">
-     <button id="join">Войти</button>
+   <div class="tabs">
+    <button id="codeTab" class="tab active">🔑 По коду</button>
+    <button id="roomsTab" class="tab">🌐 Комнаты</button>
+   </div>
+
+   <div id="codePanel">
+    <div class="field">
+     <label class="public-toggle">
+      <input type="checkbox" id="createPublic">
+      Создать публичную комнату
+     </label>
+     <button id="create" class="primary">＋ Создать комнату</button>
+    </div>
+    <div class="field">
+     <label for="code">Код комнаты друга</label>
+     <div class="line">
+      <input id="code" maxlength="8" placeholder="Код комнаты">
+      <button id="join">Войти</button>
+     </div>
+    </div>
+   </div>
+
+   <div id="roomsPanel">
+    <p class="small">Публичные комнаты, в которые можно войти.</p>
+    <button id="refreshRooms" style="width:100%">↻ Обновить список</button>
+    <div id="roomList" class="room-list">
+     <div class="small">Подключаемся к серверу…</div>
     </div>
    </div>
   </div>
@@ -103,6 +138,7 @@ canvas{display:block;position:fixed;inset:0;z-index:0;touch-action:none}
  </div>
  <div class="hudbox">
   <button id="copy">Код</button>
+  <button id="roomSettings" style="display:none">🔒 Приватная</button>
   <button id="start" class="primary">Начать</button>
   <button id="world">↩ Вернуться на карту</button>
   <button id="exit">Меню</button>
@@ -160,6 +196,8 @@ let lastSend=0,redTimer=0,greenLight=true;
 let redPhaseDuration=2+Math.random()*3;
 let toastTimeout=null,animationStarted=false;
 let lookPointers=new Map();
+let selectedRoomTab="code";
+let lastRoomList=[];
 
 const PLAYER_RADIUS=.28;
 
@@ -176,11 +214,7 @@ function toast(t){
 
 function safeText(s){
  return String(s).replace(/[&<>"']/g,c=>({
-  "&":"&amp;",
-  "<":"&lt;",
-  ">":"&gt;",
-  '"':"&quot;",
-  "'":"&#39;"
+  "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
  }[c]));
 }
 
@@ -205,6 +239,105 @@ function updateStartButton(){
  }
 }
 
+function setRoomTab(tab){
+ selectedRoomTab=tab;
+ const isRooms=tab==="rooms";
+ $("codeTab").classList.toggle("active",!isRooms);
+ $("roomsTab").classList.toggle("active",isRooms);
+ $("codePanel").style.display=isRooms?"none":"block";
+ $("roomsPanel").style.display=isRooms?"block":"none";
+
+ if(isRooms)requestRooms();
+}
+
+$("codeTab").onclick=()=>setRoomTab("code");
+$("roomsTab").onclick=()=>setRoomTab("rooms");
+$("refreshRooms").onclick=()=>requestRooms();
+
+function requestRooms(){
+ if(!socket||!socket.connected){
+  renderRooms([]);
+  $("roomList").innerHTML='<div class="small">Нет подключения к серверу.</div>';
+  return;
+ }
+
+ $("roomList").innerHTML='<div class="small">Загружаем комнаты…</div>';
+
+ socket.emit("rooms:list",response=>{
+  if(!response||!response.ok){
+   $("roomList").innerHTML='<div class="small">Не удалось получить список комнат.</div>';
+   return;
+  }
+  renderRooms(response.rooms||[]);
+ });
+}
+
+function renderRooms(rooms){
+ lastRoomList=Array.isArray(rooms)?rooms:[];
+ const list=$("roomList");
+
+ if(!lastRoomList.length){
+  list.innerHTML='<div class="small">Публичных комнат пока нет. Можешь создать свою!</div>';
+  return;
+ }
+
+ list.innerHTML="";
+
+ for(const r of lastRoomList){
+  const card=document.createElement("div");
+  card.className="room-card";
+
+  const info=document.createElement("div");
+  info.className="room-info";
+
+  const title=document.createElement("div");
+  title.className="room-title";
+  title.textContent=(GAME_NAMES[r.game]||r.game||"Мини-игра")+" • "+r.code;
+
+  const meta=document.createElement("div");
+  meta.className="room-meta";
+  const status=r.status==="playing"?"Игра уже идёт":"Ожидание игроков";
+  meta.textContent=(r.hostName||"Игрок")+" · "+(r.playerCount||0)+"/"+(r.maxPlayers||12)+" · "+status;
+
+  info.append(title,meta);
+
+  const join=document.createElement("button");
+  join.className="primary";
+  join.textContent="Войти";
+  join.disabled=(r.playerCount||0)>=(r.maxPlayers||12);
+  join.onclick=()=>joinPublicRoom(r.code);
+
+  card.append(info,join);
+  list.appendChild(card);
+ }
+}
+
+function joinPublicRoom(code){
+ if(!socket||!socket.connected){
+  setMessage("Нет подключения к серверу.");
+  return;
+ }
+
+ socket.emit("room:join-public",{
+  name:$("name").value,
+  code
+ },response=>{
+  if(!response||!response.ok){
+   setMessage(response?.error||"Не удалось войти в комнату.");
+   requestRooms();
+   return;
+  }
+
+  roomCode=response.code;
+  room=response.room||null;
+  isHost=!!response.isHost;
+  mode="multi";
+  localGame=false;
+  hubMode=false;
+  enterRoom();
+ });
+}
+
 function initSocket(){
  if(typeof window.io!=="function"){
   setMessage("Сервер мультиплеера не загружен. Одиночка и боты доступны.");
@@ -213,9 +346,22 @@ function initSocket(){
 
  socket=io();
 
- socket.on("connect",()=>setMessage("Сервер подключён."));
- socket.on("connect_error",()=>setMessage("Нет связи с сервером. Одиночная игра доступна."));
- socket.on("disconnect",()=>toast("Соединение с сервером потеряно."));
+ socket.on("connect",()=>{
+  setMessage("Сервер подключён.");
+  requestRooms();
+ });
+
+ socket.on("connect_error",()=>{
+  setMessage("Нет связи с сервером. Одиночная игра доступна.");
+ });
+
+ socket.on("disconnect",()=>{
+  toast("Соединение с сервером потеряно.");
+ });
+
+ socket.on("rooms:list:update",rooms=>{
+  renderRooms(rooms);
+ });
 
  socket.on("room:update",data=>{
   const previousStatus=room?.status;
@@ -244,7 +390,7 @@ function initSocket(){
  socket.on("player:moved",data=>updateRemote(data));
 
  socket.on("game:event",event=>{
-  const p=room?.players.find(x=>x.id===event.playerId);
+  const p=room?.players?.find(x=>x.id===event.playerId);
 
   if(event.type==="finished")toast((p?.name||"Игрок")+" добрался до финиша!");
   if(event.type==="eliminated")toast((p?.name||"Игрок")+" выбыл!");
@@ -262,10 +408,12 @@ document.querySelectorAll("[data-mode]").forEach(button=>{
   $("multiFields").style.display=mode==="multi"?"block":"none";
   $("play").style.display=mode==="multi"?"none":"block";
 
+  if(mode==="multi")requestRooms();
+
   setMessage(
    mode==="solo"?"Одиночная игра — сервер не нужен.":
    mode==="bots"?"Сразись с компьютерными соперниками!":
-   "Создай комнату или введи код друга."
+   "Создай комнату, найди публичную или введи код друга."
   );
  };
 });
@@ -284,8 +432,6 @@ document.querySelectorAll("[data-game]").forEach(button=>{
    });
   }
 
-  if(hubMode)toast("Выбрана игра: "+GAME_NAMES[chosen]);
-
   updateStartButton();
  };
 });
@@ -303,13 +449,18 @@ $("create").onclick=()=>{
   return;
  }
 
- socket.emit("room:create",{name:$("name").value,game:chosen},r=>{
+ socket.emit("room:create",{
+  name:$("name").value,
+  game:chosen,
+  isPublic:$("createPublic").checked
+ },r=>{
   if(!r||!r.ok){
    setMessage(r?.error||"Не удалось создать комнату");
    return;
   }
 
   roomCode=r.code;
+  room=r.room||null;
   isHost=true;
   mode="multi";
   localGame=false;
@@ -324,9 +475,16 @@ $("join").onclick=()=>{
   return;
  }
 
+ const code=$("code").value.trim().toUpperCase();
+
+ if(!code){
+  setMessage("Введи код комнаты.");
+  return;
+ }
+
  socket.emit("room:join",{
   name:$("name").value,
-  code:$("code").value.trim().toUpperCase()
+  code
  },r=>{
   if(!r||!r.ok){
    setMessage(r?.error||"Не удалось войти");
@@ -334,11 +492,33 @@ $("join").onclick=()=>{
   }
 
   roomCode=r.code;
+  room=r.room||null;
   isHost=!!r.isHost;
   mode="multi";
   localGame=false;
   hubMode=false;
   enterRoom();
+ });
+};
+
+$("roomSettings").onclick=()=>{
+ if(!socket||!socket.connected||!room||!isHost){
+  toast("Менять доступ может только создатель комнаты.");
+  return;
+ }
+
+ const nextPublic=!room.isPublic;
+
+ socket.emit("room:settings",{isPublic:nextPublic},response=>{
+  if(!response||!response.ok){
+   toast(response?.error||"Не удалось изменить доступ.");
+   return;
+  }
+
+  room=response.room||room;
+  room.isPublic=response.isPublic;
+  applyRoom(room);
+  toast(nextPublic?"Комната теперь публичная":"Комната теперь приватная");
  });
 };
 
@@ -396,6 +576,10 @@ function enterRoom(){
   if(room)applyRoom(room);
 
   buildWorld(chosen);
+
+  // buildWorld очищает старые модели, поэтому восстанавливаем игроков комнаты.
+  if(room)syncRemotes(room.players||[]);
+
   hubMode=false;
  }catch(err){
   console.error(err);
@@ -421,6 +605,7 @@ function startLocal(withBots){
   $("roomLabel").textContent=withBots?"AI WORLD • БОТЫ":"AI WORLD • ОДИНОЧКА";
   $("start").style.display="inline-block";
   $("world").style.display="inline-block";
+  $("roomSettings").style.display="none";
 
   buildWorld(chosen);
   makeBots(withBots?4:0);
@@ -500,11 +685,20 @@ $("exit").onclick=()=>{
 function applyRoom(data){
  if(!data)return;
 
+ room=data;
+ roomCode=data.code||roomCode;
+ isHost=data.hostId===socket?.id;
+
  $("roomLabel").textContent="Комната "+data.code+" • "+(GAME_NAMES[data.game]||data.game);
  $("status").textContent=data.status==="playing"?"РАУНД ИДЁТ":"Лобби — ждём старт";
 
- $("start").style.display=data.hostId===socket?.id?"inline-block":"none";
+ $("start").style.display=isHost?"inline-block":"none";
  $("start").textContent=data.status==="playing"?"Перезапустить":"Начать";
+
+ // Кнопка доступа видна только создателю.
+ $("roomSettings").style.display=isHost?"inline-block":"none";
+ $("roomSettings").textContent=data.isPublic?"🌐 Публичная":"🔒 Приватная";
+ $("roomSettings").title=isHost?"Нажми, чтобы изменить доступ":"Только создатель может менять доступ";
 
  $("players").innerHTML=(data.players||[]).map(p=>
   (p.id===data.hostId?"👑 ":"")+safeText(p.name)+(p.finished?" 🏆":(!p.alive?" ❌":""))
@@ -799,8 +993,6 @@ function buildWorld(game){
 
    addBox(0,.05,z,7,.5,2.7,0x7c91b1,true);
 
-   // Широкие барьеры перекрывают большую часть дорожки.
-   // Игроку нужно менять сторону на каждом следующем барьере.
    const safeSide=i%2===0?1:-1;
    const barX=-safeSide*1.35;
 
@@ -836,6 +1028,7 @@ function showLobby(){
 
  if(scene){
   buildWorld(chosen);
+  // После очистки мира обязательно возвращаем игроков комнаты.
   syncRemotes(room?.players||[]);
  }
 }
@@ -852,6 +1045,12 @@ function startGame(game){
 
  resetKeys();
  buildWorld(chosen);
+
+ // Важно: buildWorld удаляет старые модели игроков.
+ // Создаём их заново после перестройки сцены.
+ if(mode==="multi"&&room){
+  syncRemotes(room.players||[]);
+ }
 
  if(mode==="bots")makeBots(4);
 
@@ -914,7 +1113,9 @@ function updateBots(dt,time){
 function syncRemotes(players){
  if(!scene)return;
 
- const ids=new Set(players.filter(p=>p.id!==socket?.id).map(p=>p.id));
+ const ids=new Set(
+  players.filter(p=>p.id!==socket?.id).map(p=>p.id)
+ );
 
  for(const [id,mesh] of remotes){
   if(!ids.has(id)){
@@ -1054,7 +1255,6 @@ function animate(){
    if(!hubMode&&chosen==="redlight"){
     redTimer+=dt;
 
-    // Случайная длительность каждого сигнала вместо строгих 3,5 секунды.
     if(redTimer>=redPhaseDuration){
      redTimer=0;
      greenLight=!greenLight;
@@ -1150,7 +1350,6 @@ function animate(){
     }
    }
 
-   // Проверка столкновения с барьерами по их реальным размерам.
    if(!hubMode&&chosen==="obstacles"){
     for(const h of hazards){
      if(h.type!=="bar"||!h.mesh.visible)continue;
