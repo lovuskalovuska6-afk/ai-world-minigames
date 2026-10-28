@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -52,8 +53,38 @@ p{color:#b9c8e4;line-height:1.45}
 #overlay{position:fixed;z-index:8;inset:0;display:none;place-items:center;background:#050814c9;padding:18px}
 #overlay .panel{text-align:center}
 #toast{position:fixed;z-index:12;bottom:110px;left:50%;transform:translateX(-50%);background:#111a2d;border:1px solid var(--line);border-radius:12px;padding:11px 15px;display:none;max-width:90%;text-align:center;pointer-events:none}
+
+/* Игровой чат */
+#chatBox{
+ display:none;position:fixed;z-index:6;right:12px;bottom:105px;
+ width:min(310px,calc(100vw - 24px));max-height:225px;
+ background:#09101ee8;border:1px solid #2b3b5b;border-radius:15px;
+ padding:9px;pointer-events:auto;backdrop-filter:blur(8px)
+}
+#chatLog{
+ height:135px;overflow-y:auto;overflow-wrap:anywhere;
+ font-size:12px;line-height:1.4;margin-bottom:8px;
+ scrollbar-width:thin;scrollbar-color:#415a83 transparent
+}
+.chat-line{margin:4px 0;color:#dce6ff}
+.chat-line strong{color:#ffdb70}
+#chatForm{display:flex;gap:6px}
+#chatInput{width:0;min-width:0;flex:1;padding:10px;font-size:13px}
+#chatSend{padding:9px 12px;background:#70a7ff;color:#07101e;border:0}
+#chatToggle{
+ display:none;position:fixed;z-index:7;right:14px;bottom:14px;
+ width:60px;height:60px;border-radius:50%;
+ background:#142746ed;border:1px solid #6c83b8;font-size:23px
+}
+#chatBox.open{display:block}
 canvas{display:block;position:fixed;inset:0;z-index:0;touch-action:none}
-@media(max-width:480px){.panel{padding:16px}.room-card{align-items:flex-start}.room-card button{padding:8px}}
+@media(max-width:480px){
+ .panel{padding:16px}
+ .room-card{align-items:flex-start}
+ .room-card button{padding:8px}
+ #chatBox{bottom:100px;max-height:205px}
+ #chatLog{height:115px}
+}
 @media(min-width:800px){#controls{opacity:.65}.panel{padding:28px}}
 </style>
 </head>
@@ -156,6 +187,18 @@ canvas{display:block;position:fixed;inset:0;z-index:0;touch-action:none}
  <button id="jump" class="jump">ПРЫЖОК</button>
 </div>
 
+<!-- Чат -->
+<div id="chatBox">
+ <div id="chatLog">
+  <div class="chat-line">💬 Чат готов. Напиши сообщение!</div>
+ </div>
+ <form id="chatForm">
+  <input id="chatInput" maxlength="160" autocomplete="off" placeholder="Сообщение..." aria-label="Сообщение">
+  <button id="chatSend" type="submit">➤</button>
+ </form>
+</div>
+<button id="chatToggle" aria-label="Открыть чат">💬</button>
+
 <div id="overlay">
  <div class="panel">
   <h1 id="resultTitle">Раунд окончен</h1>
@@ -197,8 +240,224 @@ let toastTimeout=null,animationStarted=false;
 let lookPointers=new Map();
 let selectedRoomTab="code";
 let lastRoomList=[];
+let chatOpen=false;
 
 const PLAYER_RADIUS=.28;
+
+/* ---------- ЧАТ ---------- */
+
+function getPlayerName(){
+ return ($("name").value||"Игрок").trim().slice(0,18)||"Игрок";
+}
+
+function appendChatMessage(name,message){
+ const log=$("chatLog");
+ const line=document.createElement("div");
+ line.className="chat-line";
+
+ const who=document.createElement("strong");
+ who.textContent=(name||"Игрок")+": ";
+
+ const text=document.createElement("span");
+ text.textContent=String(message||"").slice(0,160);
+
+ line.append(who,text);
+ log.appendChild(line);
+
+ while(log.children.length>60){
+  log.removeChild(log.firstChild);
+ }
+
+ log.scrollTop=log.scrollHeight;
+}
+
+/*
+ * Рисуем облачко с сообщением на Canvas и показываем его
+ * над головой соответствующего 3D-персонажа.
+ */
+function showBubble(avatar,message){
+ if(!avatar||!avatar.userData)return;
+
+ const text=String(message||"").trim().slice(0,160);
+ if(!text)return;
+
+ let sprite=avatar.userData.chatBubble;
+
+ if(!sprite){
+  const canvas=document.createElement("canvas");
+  canvas.width=512;
+  canvas.height=160;
+
+  const texture=new THREE.CanvasTexture(canvas);
+  texture.colorSpace=THREE.SRGBColorSpace;
+
+  const spriteMaterial=new THREE.SpriteMaterial({
+   map:texture,
+   transparent:true,
+   depthTest:false,
+   depthWrite:false
+  });
+
+  sprite=new THREE.Sprite(spriteMaterial);
+  sprite.position.set(0,2.65,0);
+  sprite.scale.set(2.4,.75,1);
+  sprite.renderOrder=1000;
+  avatar.add(sprite);
+
+  avatar.userData.chatBubble=sprite;
+  avatar.userData.chatBubbleCanvas=canvas;
+  avatar.userData.chatBubbleUntil=0;
+ }
+
+ const canvas=avatar.userData.chatBubbleCanvas;
+ const ctx=canvas.getContext("2d");
+
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+
+ const maxChars=36;
+ const words=text.split(/\s+/);
+ const lines=[];
+ let current="";
+
+ for(const word of words){
+  const next=current?current+" "+word:word;
+
+  if(next.length>maxChars&&current){
+   lines.push(current);
+   current=word;
+  }else{
+   current=next;
+  }
+ }
+
+ if(current)lines.push(current);
+
+ let visibleLines=lines.slice(0,3);
+ if(lines.length>3){
+  visibleLines[2]=visibleLines[2].slice(0,32)+"…";
+ }
+
+ const lineHeight=36;
+ const boxHeight=Math.max(68,visibleLines.length*lineHeight+26);
+ const top=(canvas.height-boxHeight)/2;
+
+ ctx.fillStyle="rgba(7,13,28,0.94)";
+ ctx.beginPath();
+ ctx.roundRect(12,top,488,boxHeight,22);
+ ctx.fill();
+
+ ctx.strokeStyle="rgba(112,167,255,0.95)";
+ ctx.lineWidth=5;
+ ctx.stroke();
+
+ ctx.fillStyle="#ffffff";
+ ctx.font="bold 27px Arial";
+ ctx.textAlign="center";
+ ctx.textBaseline="middle";
+
+ const startY=canvas.height/2-(visibleLines.length-1)*lineHeight/2;
+
+ visibleLines.forEach((line,index)=>{
+  ctx.fillText(line,256,startY+index*lineHeight,450);
+ });
+
+ sprite.material.map.needsUpdate=true;
+ sprite.visible=true;
+ sprite.scale.set(2.3,Math.max(.65,visibleLines.length*.36+.3),1);
+ sprite.position.y=2.45+visibleLines.length*.13;
+
+ avatar.userData.chatBubbleUntil=Date.now()+5000;
+}
+
+function hideExpiredBubbles(){
+ const check=avatar=>{
+  if(!avatar?.userData)return;
+
+  const sprite=avatar.userData.chatBubble;
+  const until=avatar.userData.chatBubbleUntil;
+
+  if(sprite&&until&&Date.now()>until){
+   sprite.visible=false;
+   avatar.userData.chatBubbleUntil=0;
+  }
+ };
+
+ check(playerBody);
+
+ for(const mesh of remotes.values())check(mesh);
+ for(const bot of bots)check(bot.mesh);
+}
+
+function sendChatMessage(message){
+ const text=String(message||"").trim().slice(0,160);
+ if(!text)return;
+
+ appendChatMessage(getPlayerName(),text);
+ showBubble(playerBody,text);
+
+ if(mode==="multi"&&room&&!localGame&&socket&&socket.connected){
+  socket.emit("chat:send",{
+   message:text,
+   name:getPlayerName()
+  });
+ }else if(mode==="bots"){
+  const bot=bots.length?bots[Math.floor(Math.random()*bots.length)]:null;
+
+  if(bot){
+   const replies=[
+    "Хорошее сообщение!",
+    "Погнали дальше!",
+    "Я тут! 😎",
+    "Увидимся на финише!",
+    "Попробуй меня догнать!"
+   ];
+
+   const reply=replies[Math.floor(Math.random()*replies.length)];
+
+   setTimeout(()=>{
+    appendChatMessage("Бот",reply);
+    showBubble(bot.mesh,reply);
+   },500+Math.random()*900);
+  }
+ }
+}
+
+$("chatForm").addEventListener("submit",e=>{
+ e.preventDefault();
+
+ const input=$("chatInput");
+ const text=input.value;
+
+ sendChatMessage(text);
+ input.value="";
+ input.blur();
+});
+
+$("chatToggle").onclick=()=>{
+ chatOpen=!chatOpen;
+ $("chatBox").classList.toggle("open",chatOpen);
+ $("chatToggle").textContent=chatOpen?"✕":"💬";
+
+ if(chatOpen){
+  $("chatInput").focus();
+  $("chatLog").scrollTop=$("chatLog").scrollHeight;
+ }
+};
+
+function showChat(){
+ $("chatToggle").style.display="block";
+ $("chatBox").classList.toggle("open",chatOpen);
+ $("chatToggle").textContent=chatOpen?"✕":"💬";
+}
+
+function hideChat(){
+ $("chatBox").classList.remove("open");
+ $("chatToggle").style.display="none";
+ chatOpen=false;
+ $("chatToggle").textContent="💬";
+}
+
+/* ---------- ОСНОВНАЯ ИГРА ---------- */
 
 function setMessage(t){
  $("message").textContent=t;
@@ -228,6 +487,7 @@ function showGameUI(){
  $("hud").style.display="flex";
  $("controls").style.display="flex";
  $("lookHint").style.display="block";
+ showChat();
 }
 
 function updateStartButton(){
@@ -318,7 +578,7 @@ function joinPublicRoom(code){
  }
 
  socket.emit("room:join-public",{
-  name:$("name").value,
+  name:getPlayerName(),
   code
  },response=>{
   if(!response||!response.ok){
@@ -388,6 +648,28 @@ function initSocket(){
 
  socket.on("player:moved",data=>updateRemote(data));
 
+ /* Получение сообщений от других игроков.
+    Сервер должен пересылать chat:send в событие chat:message. */
+ socket.on("chat:message",data=>{
+  if(!data)return;
+
+  const message=String(data.message||"").trim().slice(0,160);
+  if(!message)return;
+
+  const name=String(data.name||"Игрок").slice(0,18);
+  appendChatMessage(name,message);
+
+  let avatar=null;
+
+  if(data.playerId&&data.playerId===socket.id){
+   avatar=playerBody;
+  }else if(data.playerId){
+   avatar=remotes.get(data.playerId)||null;
+  }
+
+  if(avatar)showBubble(avatar,message);
+ });
+
  socket.on("game:event",event=>{
   const p=room?.players?.find(x=>x.id===event.playerId);
 
@@ -449,7 +731,7 @@ $("create").onclick=()=>{
  }
 
  socket.emit("room:create",{
-  name:$("name").value,
+  name:getPlayerName(),
   game:chosen,
   isPublic:$("createPublic").checked
  },r=>{
@@ -482,7 +764,7 @@ $("join").onclick=()=>{
  }
 
  socket.emit("room:join",{
-  name:$("name").value,
+  name:getPlayerName(),
   code
  },r=>{
   if(!r||!r.ok){
@@ -584,6 +866,7 @@ function enterRoom(){
   $("menu").style.display="grid";
   $("hud").style.display="none";
   $("controls").style.display="none";
+  hideChat();
   setMessage("Ошибка 3D: "+(err?.message||err));
  }
 }
@@ -620,6 +903,7 @@ function startLocal(withBots){
  }catch(err){
   console.error(err);
   $("menu").style.display="grid";
+  hideChat();
   setMessage("Ошибка запуска: "+(err?.message||err));
  }
 }
@@ -639,76 +923,31 @@ function returnToWorld(){
 $("world").onclick=returnToWorld;
 $("again").onclick=returnToWorld;
 
-/*
- * ЛИЧНОЕ ВОЗРОЖДЕНИЕ
- * Перестраивает сцену только в этом браузере.
- * Не отправляет game:start и не запускает общий раунд.
- */
-function respawnLocalPlayer(){
- if(!scene||!player){
-  toast("Игровой мир ещё не загружен.");
-  return;
- }
-
+$("retry").onclick=()=>{
  resetKeys();
-
- // Сбрасываем мир только у этого клиента:
- // позиции платформ, исчезнувшие плитки и уровень лавы.
- buildWorld(chosen);
-
- // buildWorld очищает модели других игроков на нашей сцене,
- // поэтому добавляем их обратно из последнего состояния комнаты.
- if(mode==="multi"&&room){
-  syncRemotes(room.players||[]);
- }
-
- // Возвращаем только своего персонажа на старт.
- player.position.set(0,.02,3);
- player.rotation.y=yaw+Math.PI;
-
  velocityY=0;
  onGround=true;
- alive=true;
- finished=false;
- started=true;
- hubMode=false;
 
- redTimer=0;
- greenLight=true;
- redPhaseDuration=2+Math.random()*3;
-
- $("overlay").style.display="none";
- $("status").textContent="ИГРА: "+GAME_NAMES[chosen];
-
- // Сообщаем серверу, что именно этот игрок снова активен.
- // События game:start здесь намеренно нет.
- if(socket&&!localGame&&socket.connected){
-  socket.emit("player:move",{
-   x:player.position.x,
-   y:player.position.y,
-   z:player.position.z,
-   yaw,
-   alive:true,
-   finished:false
-  });
- }
-
- toast("Ты возродился! Остальные продолжают играть.");
-}
-
-$("retry").onclick=()=>{
  if(mode==="multi"&&room){
   if(!socket||!socket.connected){
    toast("Нет соединения с сервером. Переподключись к комнате.");
    return;
   }
 
-  // В мультиплеере возрождаем только этого игрока.
-  respawnLocalPlayer();
+  if(!isHost){
+   toast("Перезапустить раунд может создатель комнаты.");
+   return;
+  }
+
+  socket.emit("game:start",{},response=>{
+   if(!response||!response.ok){
+    toast(response?.error||"Не удалось перезапустить раунд.");
+   }
+  });
+
   return;
  }
 
- // В одиночке и режиме с ботами остаётся обычный перезапуск.
  startLocal(mode==="bots");
 };
 
@@ -720,6 +959,7 @@ $("exit").onclick=()=>{
  $("controls").style.display="none";
  $("lookHint").style.display="none";
  $("overlay").style.display="none";
+ hideChat();
 
  started=false;
  hubMode=false;
@@ -824,6 +1064,10 @@ function makeAvatar(color){
   leg.position.set(x,.4,0);
   group.add(leg);
  }
+
+ // Создаём пустое облачко заранее; текст появится после сообщения.
+ group.userData.chatBubble=null;
+ group.userData.chatBubbleUntil=0;
 
  return group;
 }
@@ -1205,7 +1449,7 @@ function finishRound(won,reason){
    y:player.position.y,
    z:player.position.z,
    yaw,
-   alive:false,
+   alive,
    finished
   });
  }
@@ -1289,6 +1533,8 @@ function animate(){
  try{
   const dt=Math.min(clock.getDelta(),.04);
   const time=clock.elapsedTime;
+
+  hideExpiredBubbles();
 
   if(started&&alive&&player){
    if(!hubMode&&chosen==="redlight"){
@@ -1476,6 +1722,9 @@ const keyMap={
 };
 
 document.addEventListener("keydown",e=>{
+ // Enter в поле чата не должен влиять на движение персонажа.
+ if(document.activeElement===$("chatInput"))return;
+
  if(keyMap[e.code]){
   keys[keyMap[e.code]]=true;
   e.preventDefault();
@@ -1531,4 +1780,4 @@ initSocket();
 })();
 </script>
 </body>
- </html>
+</html>
