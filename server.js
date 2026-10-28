@@ -1,520 +1,413 @@
 
+"use strict";
+
 const express = require("express");
 const http = require("http");
+const path = require("path");
 const { Server } = require("socket.io");
-const crypto = require("crypto");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: { origin: "*" },
+  pingInterval: 25000,
+  pingTimeout: 20000
+});
 
 const PORT = process.env.PORT || 3000;
 const MAX_PLAYERS = 12;
-
 const rooms = new Map();
+const socketRooms = new Map();
 
-const ALLOWED_GAMES = [
-  "parkour",
-  "redlight",
-  "tiles",
-  "lava",
-  "obstacles"
-];
+const GAME_NAMES = {
+  parkour: "3D Паркур",
+  redlight: "Красный свет",
+  tiles: "Исчезающие плитки",
+  lava: "Поднимающаяся лава",
+  obstacles: "Полоса препятствий"
+};
 
-app.use(express.static("public"));
+function cleanName(value) {
+  return String(value || "Игрок").trim().slice(0, 18) || "Игрок";
+}
 
-app.get("/health", (req, res) => {
-  res.json({
-    ok: true,
-    rooms: rooms.size,
-    publicRooms: getPublicRooms().length
-  });
-});
+function validGame(game) {
+  return Object.prototype.hasOwnProperty.call(GAME_NAMES, game);
+}
 
 function makeCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code;
 
   do {
-    code = Array.from(
-      { length: 5 },
-      () => chars[Math.floor(Math.random() * chars.length)]
-    ).join("");
+    code = "";
+    for (let i = 0; i < 5; i++) {
+      code += chars[Math.floor(Math.random() * chars.length)];
+    }
   } while (rooms.has(code));
 
   return code;
 }
 
-function cleanName(name) {
-  return String(name || "Игрок")
-    .replace(/[<>]/g, "")
-    .trim()
-    .slice(0, 18) || "Игрок";
+function getRoom(socket) {
+  const code = socketRooms.get(socket.id);
+  return code ? rooms.get(code) : null;
 }
 
-function makePlayer(socket, name) {
+function publicPlayer(player) {
   return {
-    id: socket.id,
-    name: cleanName(name),
-    x: 0,
-    y: 1,
-    z: 4,
-    yaw: 0,
-    color: "#" + crypto.randomBytes(3).toString("hex"),
-    alive: true,
-    finished: false
+    id: player.id,
+    name: player.name,
+    color: player.color,
+    x: player.x,
+    y: player.y,
+    z: player.z,
+    yaw: player.yaw,
+    alive: player.alive,
+    finished: player.finished
   };
 }
 
-function roomData(room) {
+function publicRoom(room, viewerId = null) {
   return {
     code: room.code,
     game: room.game,
-    status: room.status,
     isPublic: room.isPublic,
+    status: room.status,
     hostId: room.hostId,
-    hostName:
-      room.players.get(room.hostId)?.name || "Игрок",
+    isHost: viewerId === room.hostId,
     maxPlayers: MAX_PLAYERS,
-    players: [...room.players.values()]
+    playerCount: room.players.size,
+    hostName: room.players.get(room.hostId)?.name || "Игрок",
+    players: [...room.players.values()].map(publicPlayer)
   };
 }
 
-function getPublicRooms() {
-  return [...rooms.values()]
+function respond(callback, data) {
+  if (typeof callback === "function") callback(data);
+}
+
+function fail(callback, error) {
+  respond(callback, { ok: false, error });
+}
+
+function ok(callback, data = {}) {
+  respond(callback, { ok: true, ...data });
+}
+
+function publishRoom(room) {
+  if (!room) return;
+
+  io.to(room.code).emit("room:update", publicRoom(room));
+  publishRoomList();
+}
+
+function publishRoomList() {
+  const list = [...rooms.values()]
     .filter(room => room.isPublic)
     .map(room => ({
       code: room.code,
       game: room.game,
       status: room.status,
-      hostName:
-        room.players.get(room.hostId)?.name || "Игрок",
+      hostName: room.players.get(room.hostId)?.name || "Игрок",
       playerCount: room.players.size,
       maxPlayers: MAX_PLAYERS
-    }))
-    .sort((a, b) => {
-      if (a.status !== b.status) {
-        return a.status === "lobby" ? -1 : 1;
-      }
+    }));
 
-      return b.playerCount - a.playerCount;
-    });
-}
-
-function broadcastPublicRooms() {
-  io.emit("rooms:list:update", getPublicRooms());
-}
-
-function updateRoom(room) {
-  io.to(room.code).emit("room:update", roomData(room));
-  broadcastPublicRooms();
-}
-
-function getSocketRoom(socket) {
-  const code = socket.data.roomCode;
-
-  if (!code) return null;
-
-  return rooms.get(code) || null;
+  io.emit("rooms:list:update", list);
 }
 
 function leaveRoom(socket) {
-  const code = socket.data.roomCode;
-
-  if (!code) return;
-
-  const room = rooms.get(code);
-
-  socket.leave(code);
-  socket.data.roomCode = null;
-
-  if (!room) return;
-
-  room.players.delete(socket.id);
-
-  if (room.players.size === 0) {
-    rooms.delete(code);
-    broadcastPublicRooms();
+  const room = getRoom(socket);
+  if (!room) {
+    socketRooms.delete(socket.id);
     return;
   }
 
-  // Если создатель вышел, передаём права следующему игроку.
-  if (room.hostId === socket.id) {
+  room.players.delete(socket.id);
+  socketRooms.delete(socket.id);
+  socket.leave(room.code);
+
+  if (room.players.size === 0) {
+    rooms.delete(room.code);
+    publishRoomList();
+    return;
+  }
+
+  if (!room.players.has(room.hostId)) {
     room.hostId = room.players.keys().next().value;
   }
 
-  updateRoom(room);
-}
-
-function joinRoom(socket, room, name, reply) {
-  if (room.players.size >= MAX_PLAYERS) {
-    return reply({
-      ok: false,
-      error: "В комнате максимум 12 игроков."
-    });
-  }
-
-  room.players.set(
-    socket.id,
-    makePlayer(socket, name)
-  );
-
-  socket.join(room.code);
-  socket.data.roomCode = room.code;
-
-  reply({
-    ok: true,
-    code: room.code,
-    isHost: room.hostId === socket.id,
-    room: roomData(room)
-  });
-
-  updateRoom(room);
-
-  // Если комната уже запущена, новый игрок получает событие старта.
   if (room.status === "playing") {
-    socket.emit("game:started", {
-      game: room.game,
-      at: Date.now()
-    });
-  }
-}
-
-io.on("connection", socket => {
-  // Получение списка публичных комнат.
-  socket.on("rooms:list", (reply = () => {}) => {
-    reply({
-      ok: true,
-      rooms: getPublicRooms()
-    });
-  });
-
-  // Создание комнаты.
-  socket.on("room:create", (data = {}, reply = () => {}) => {
-    leaveRoom(socket);
-
-    const game = ALLOWED_GAMES.includes(data.game)
-      ? data.game
-      : "parkour";
-
-    const isPublic = data.isPublic === true;
-    const code = makeCode();
-
-    const room = {
-      code,
-      game,
-      status: "lobby",
-      isPublic,
-      hostId: socket.id,
-      players: new Map()
-    };
-
-    room.players.set(
-      socket.id,
-      makePlayer(socket, data.name)
-    );
-
-    rooms.set(code, room);
-
-    socket.join(code);
-    socket.data.roomCode = code;
-
-    reply({
-      ok: true,
-      code,
-      isHost: true,
-      isPublic,
-      room: roomData(room)
-    });
-
-    updateRoom(room);
-  });
-
-  // Вход в комнату по коду.
-  socket.on("room:join", (data = {}, reply = () => {}) => {
-    const code = String(data.code || "")
-      .trim()
-      .toUpperCase();
-
-    const room = rooms.get(code);
-
-    if (!room) {
-      return reply({
-        ok: false,
-        error: "Комната не найдена."
-      });
-    }
-
-    // Повторный вход в ту же комнату не создаёт дубликат игрока.
-    if (
-      socket.data.roomCode === code &&
-      room.players.has(socket.id)
-    ) {
-      return reply({
-        ok: true,
-        code,
-        isHost: room.hostId === socket.id,
-        room: roomData(room)
-      });
-    }
-
-    // Не выгоняем игрока из старой комнаты, если новая заполнена.
-    if (room.players.size >= MAX_PLAYERS) {
-      return reply({
-        ok: false,
-        error: "В комнате максимум 12 игроков."
-      });
-    }
-
-    leaveRoom(socket);
-
-    const currentRoom = rooms.get(code);
-
-    if (!currentRoom) {
-      return reply({
-        ok: false,
-        error: "Комната больше не существует."
-      });
-    }
-
-    joinRoom(socket, currentRoom, data.name, reply);
-  });
-
-  // Вход в комнату через список публичных комнат.
-  socket.on(
-    "room:join-public",
-    (data = {}, reply = () => {}) => {
-      const code = String(data.code || "")
-        .trim()
-        .toUpperCase();
-
-      const room = rooms.get(code);
-
-      if (!room || !room.isPublic) {
-        return reply({
-          ok: false,
-          error: "Публичная комната больше недоступна."
-        });
-      }
-
-      if (
-        socket.data.roomCode === code &&
-        room.players.has(socket.id)
-      ) {
-        return reply({
-          ok: true,
-          code,
-          isHost: room.hostId === socket.id,
-          room: roomData(room)
-        });
-      }
-
-      if (room.players.size >= MAX_PLAYERS) {
-        return reply({
-          ok: false,
-          error: "В комнате максимум 12 игроков."
-        });
-      }
-
-      leaveRoom(socket);
-
-      const currentRoom = rooms.get(code);
-
-      if (!currentRoom || !currentRoom.isPublic) {
-        return reply({
-          ok: false,
-          error: "Публичная комната больше недоступна."
-        });
-      }
-
-      joinRoom(socket, currentRoom, data.name, reply);
-    }
-  );
-
-  // Изменение публичности комнаты.
-  // Клиент должен отправить:
-  // socket.emit("room:settings", { isPublic: false }, callback)
-  socket.on(
-    "room:settings",
-    (data = {}, reply = () => {}) => {
-      const room = getSocketRoom(socket);
-
-      if (!room) {
-        return reply({
-          ok: false,
-          error: "Нет комнаты."
-        });
-      }
-
-      // Только текущий создатель может менять доступ.
-      if (room.hostId !== socket.id) {
-        return reply({
-          ok: false,
-          error: "Менять доступ может только создатель комнаты."
-        });
-      }
-
-      if (typeof data.isPublic !== "boolean") {
-        return reply({
-          ok: false,
-          error: "Неверная настройка доступа."
-        });
-      }
-
-      room.isPublic = data.isPublic;
-
-      updateRoom(room);
-
-      reply({
-        ok: true,
-        isPublic: room.isPublic,
-        room: roomData(room)
-      });
-    }
-  );
-
-  // Синхронизация положения игроков.
-  socket.on("player:move", data => {
-    const room = getSocketRoom(socket);
-    const player = room?.players.get(socket.id);
-
-    if (!room || !player || !data) return;
-
-    for (const key of ["x", "y", "z", "yaw"]) {
-      if (Number.isFinite(data[key])) {
-        player[key] = Math.max(
-          -100,
-          Math.min(100, data[key])
-        );
-      }
-    }
-
-    if (typeof data.alive === "boolean") {
-      player.alive = data.alive;
-    }
-
-    if (typeof data.finished === "boolean") {
-      player.finished = data.finished;
-    }
-
-    socket.to(room.code).volatile.emit("player:moved", {
-      id: player.id,
-      x: player.x,
-      y: player.y,
-      z: player.z,
-      yaw: player.yaw,
-      alive: player.alive,
-      finished: player.finished
-    });
-  });
-
-  // Выбор мини-игры.
-  socket.on("game:select", (data = {}, reply = () => {}) => {
-    const room = getSocketRoom(socket);
-
-    if (!room) {
-      return reply({
-        ok: false,
-        error: "Нет комнаты."
-      });
-    }
-
-    if (room.hostId !== socket.id) {
-      return reply({
-        ok: false,
-        error: "Выбирать игру может создатель комнаты."
-      });
-    }
-
-    if (!ALLOWED_GAMES.includes(data.game)) {
-      return reply({
-        ok: false,
-        error: "Неизвестная игра."
-      });
-    }
-
-    room.game = data.game;
     room.status = "lobby";
-
     for (const player of room.players.values()) {
-      player.x = 0;
-      player.y = 1;
-      player.z = 4;
       player.alive = true;
       player.finished = false;
     }
+  }
 
-    updateRoom(room);
-    reply({ ok: true });
+  publishRoom(room);
+}
+
+function createRoom(socket, data, callback) {
+  if (getRoom(socket)) leaveRoom(socket);
+
+  const game = validGame(data?.game) ? data.game : "parkour";
+  const code = makeCode();
+
+  const room = {
+    code,
+    game,
+    isPublic: Boolean(data?.isPublic),
+    status: "lobby",
+    hostId: socket.id,
+    players: new Map()
+  };
+
+  room.players.set(socket.id, {
+    id: socket.id,
+    name: cleanName(data?.name),
+    color: "#58a6ff",
+    x: 0,
+    y: 0,
+    z: 3,
+    yaw: 0,
+    alive: true,
+    finished: false
   });
 
-  // Запуск игры.
-  socket.on("game:start", (_data, reply = () => {}) => {
-    const room = getSocketRoom(socket);
+  rooms.set(code, room);
+  socketRooms.set(socket.id, code);
+  socket.join(code);
 
-    if (!room) {
-      return reply({
-        ok: false,
-        error: "Нет комнаты."
-      });
+  publishRoom(room);
+  ok(callback, {
+    code,
+    isHost: true,
+    room: publicRoom(room, socket.id)
+  });
+}
+
+function joinRoom(socket, code, callback, publicOnly = false) {
+  code = String(code || "").trim().toUpperCase();
+  const room = rooms.get(code);
+
+  if (!room) return fail(callback, "Комната не найдена.");
+  if (publicOnly && !room.isPublic) {
+    return fail(callback, "Эта комната не публичная.");
+  }
+  if (room.status === "playing") {
+    return fail(callback, "Игра уже началась. Выбери другую комнату.");
+  }
+  if (room.players.size >= MAX_PLAYERS) {
+    return fail(callback, "Комната заполнена.");
+  }
+
+  if (getRoom(socket)) leaveRoom(socket);
+
+  room.players.set(socket.id, {
+    id: socket.id,
+    name: cleanName(arguments[1]?.name),
+    color: "#ffbb55",
+    x: Math.random() * 2 - 1,
+    y: 0,
+    z: 3,
+    yaw: 0,
+    alive: true,
+    finished: false
+  });
+
+  socketRooms.set(socket.id, code);
+  socket.join(code);
+
+  publishRoom(room);
+
+  ok(callback, {
+    code,
+    isHost: room.hostId === socket.id,
+    room: publicRoom(room, socket.id)
+  });
+}
+
+app.use(express.static(path.join(__dirname, "public")));
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true, rooms: rooms.size });
+});
+
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/socket.io/")) return next();
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+io.on("connection", socket => {
+  socket.on("rooms:list", callback => {
+    const list = [...rooms.values()]
+      .filter(room => room.isPublic)
+      .map(room => ({
+        code: room.code,
+        game: room.game,
+        status: room.status,
+        hostName: room.players.get(room.hostId)?.name || "Игрок",
+        playerCount: room.players.size,
+        maxPlayers: MAX_PLAYERS
+      }));
+
+    ok(callback, { rooms: list });
+  });
+
+  socket.on("room:create", (data, callback) => {
+    createRoom(socket, data || {}, callback);
+  });
+
+  socket.on("room:join", (data, callback) => {
+    joinRoom(socket, data?.code, callback, false);
+  });
+
+  socket.on("room:join-public", (data, callback) => {
+    joinRoom(socket, data?.code, callback, true);
+  });
+
+  socket.on("game:select", (data, callback) => {
+    const room = getRoom(socket);
+
+    if (!room) return fail(callback, "Ты не в комнате.");
+    if (room.hostId !== socket.id) {
+      return fail(callback, "Выбирать игру может только создатель.");
+    }
+    if (room.status === "playing") {
+      return fail(callback, "Сначала заверши текущий раунд.");
+    }
+    if (!validGame(data?.game)) {
+      return fail(callback, "Неизвестная мини-игра.");
     }
 
+    room.game = data.game;
+    publishRoom(room);
+    ok(callback, { game: room.game });
+  });
+
+  socket.on("room:settings", (data, callback) => {
+    const room = getRoom(socket);
+
+    if (!room) return fail(callback, "Ты не в комнате.");
     if (room.hostId !== socket.id) {
-      return reply({
-        ok: false,
-        error: "Запустить игру может создатель комнаты."
-      });
+      return fail(callback, "Изменять настройки может только создатель.");
+    }
+
+    room.isPublic = Boolean(data?.isPublic);
+    publishRoom(room);
+
+    ok(callback, {
+      isPublic: room.isPublic,
+      room: publicRoom(room, socket.id)
+    });
+  });
+
+  socket.on("game:start", (_data, callback) => {
+    const room = getRoom(socket);
+
+    if (!room) return fail(callback, "Сначала войди в комнату.");
+    if (room.hostId !== socket.id) {
+      return fail(callback, "Начать игру может только создатель комнаты.");
+    }
+    if (!validGame(room.game)) {
+      return fail(callback, "Не выбрана мини-игра.");
     }
 
     room.status = "playing";
 
     for (const player of room.players.values()) {
       player.x = 0;
-      player.y = 1;
-      player.z = 4;
+      player.y = 0;
+      player.z = 3;
+      player.yaw = 0;
       player.alive = true;
       player.finished = false;
     }
 
+    publishRoom(room);
+
     io.to(room.code).emit("game:started", {
       game: room.game,
-      at: Date.now()
+      room: publicRoom(room)
     });
 
-    updateRoom(room);
-    reply({ ok: true });
+    ok(callback, { game: room.game });
   });
 
-  // События мини-игр.
-  socket.on("game:event", data => {
-    const room = getSocketRoom(socket);
+  socket.on("player:move", data => {
+    const room = getRoom(socket);
+    if (!room || !data || room.status !== "playing") return;
 
-    if (!room || !data) return;
+    const player = room.players.get(socket.id);
+    if (!player) return;
 
-    const allowed = [
-      "eliminated",
-      "finished",
-      "jump",
-      "redlight"
-    ];
+    const number = (value, fallback = 0) =>
+      Number.isFinite(Number(value)) ? Number(value) : fallback;
 
-    if (!allowed.includes(data.type)) return;
+    player.x = Math.max(-100, Math.min(100, number(data.x)));
+    player.y = Math.max(-20, Math.min(100, number(data.y)));
+    player.z = Math.max(-200, Math.min(100, number(data.z)));
+    player.yaw = number(data.yaw);
+    player.alive = data.alive !== false;
+    player.finished = Boolean(data.finished);
+
+    socket.to(room.code).volatile.emit("player:moved", publicPlayer(player));
+  });
+
+  socket.on("chat:send", data => {
+    const message = String(data?.message || "").trim().slice(0, 160);
+    if (!message) return;
+
+    const room = getRoom(socket);
+    const player = room?.players.get(socket.id);
+    const name = player?.name || cleanName(data?.name);
+
+    const payload = {
+      playerId: socket.id,
+      name,
+      message
+    };
+
+    if (room) {
+      io.to(room.code).emit("chat:message", payload);
+    } else {
+      socket.emit("chat:message", payload);
+    }
+  });
+
+  socket.on("game:event", event => {
+    const room = getRoom(socket);
+    if (!room || !event) return;
+
+    const player = room.players.get(socket.id);
+    if (!player) return;
+
+    const type = String(event.type || "");
+
+    if (type === "finished") {
+      player.finished = true;
+    } else if (type === "eliminated") {
+      player.alive = false;
+    } else if (type !== "jump") {
+      return;
+    }
 
     io.to(room.code).emit("game:event", {
-      type: data.type,
+      type,
       playerId: socket.id,
-      detail: String(data.detail || "").slice(0, 80)
+      detail: String(event.detail || "").slice(0, 100)
     });
+
+    publishRoom(room);
   });
 
-  // Удаление игрока при отключении.
   socket.on("disconnect", () => {
     leaveRoom(socket);
   });
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(
-    "AI WORLD multiplayer server started on " + PORT
-  );
+  console.log(`AI WORLD server listening on port ${PORT}`);
 });
