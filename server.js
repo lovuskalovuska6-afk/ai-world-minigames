@@ -1,46 +1,69 @@
 
-"use strict";
+'use strict';
 
-const express = require("express");
-const http = require("http");
-const path = require("path");
-const { Server } = require("socket.io");
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*" },
+  cors: { origin: '*' },
   pingInterval: 25000,
   pingTimeout: 20000
 });
 
 const PORT = process.env.PORT || 3000;
 const MAX_PLAYERS = 12;
-const rooms = new Map();
-const socketRooms = new Map();
+const VALID_GAMES = new Set([
+  'parkour', 'redlight', 'tiles', 'lava', 'obstacles'
+]);
 
-const GAME_NAMES = {
-  parkour: "3D Паркур",
-  redlight: "Красный свет",
-  tiles: "Исчезающие плитки",
-  lava: "Поднимающаяся лава",
-  obstacles: "Полоса препятствий"
-};
+const rooms = new Map();
+const COLORS = [
+  '#ffbb55', '#70d6a0', '#d18cff',
+  '#ff718b', '#62c9ff', '#f6d365', '#ff8c69'
+];
+
+app.use(express.static(__dirname));
+
+app.get('/health', (req, res) => {
+  res.json({ ok: true, rooms: rooms.size });
+});
+
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/socket.io/')) return next();
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 function cleanName(value) {
-  return String(value || "Игрок").trim().slice(0, 18) || "Игрок";
+  return String(value || 'Игрок')
+    .replace(/[<>\u0000-\u001f]/g, '')
+    .trim()
+    .slice(0, 18) || 'Игрок';
 }
 
-function validGame(game) {
-  return Object.prototype.hasOwnProperty.call(GAME_NAMES, game);
+function cleanCode(value) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 8);
+}
+
+function cleanMessage(value) {
+  return String(value || '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+    .trim()
+    .slice(0, 160);
 }
 
 function makeCode() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code;
 
   do {
-    code = "";
+    code = '';
     for (let i = 0; i < 5; i++) {
       code += chars[Math.floor(Math.random() * chars.length)];
     }
@@ -49,365 +72,343 @@ function makeCode() {
   return code;
 }
 
-function getRoom(socket) {
-  const code = socketRooms.get(socket.id);
-  return code ? rooms.get(code) : null;
+function playerList(room) {
+  return [...room.players.values()].map(p => ({
+    id: p.id,
+    name: p.name,
+    x: p.x,
+    y: p.y,
+    z: p.z,
+    yaw: p.yaw,
+    alive: p.alive,
+    finished: p.finished,
+    color: p.color
+  }));
 }
 
-function publicPlayer(player) {
-  return {
-    id: player.id,
-    name: player.name,
-    color: player.color,
-    x: player.x,
-    y: player.y,
-    z: player.z,
-    yaw: player.yaw,
-    alive: player.alive,
-    finished: player.finished
-  };
-}
-
-function publicRoom(room, viewerId = null) {
+function publicRoom(room, viewerId) {
   return {
     code: room.code,
     game: room.game,
-    isPublic: room.isPublic,
-    status: room.status,
     hostId: room.hostId,
-    isHost: viewerId === room.hostId,
-    maxPlayers: MAX_PLAYERS,
+    hostName: room.players.get(room.hostId)?.name || 'Игрок',
+    status: room.status,
+    isPublic: room.isPublic,
+    maxPlayers: room.maxPlayers,
+    players: playerList(room),
     playerCount: room.players.size,
-    hostName: room.players.get(room.hostId)?.name || "Игрок",
-    players: [...room.players.values()].map(publicPlayer)
+    isHost: room.hostId === viewerId
   };
 }
 
-function respond(callback, data) {
-  if (typeof callback === "function") callback(data);
+function roomSummary(room) {
+  return {
+    code: room.code,
+    game: room.game,
+    hostId: room.hostId,
+    hostName: room.players.get(room.hostId)?.name || 'Игрок',
+    status: room.status,
+    isPublic: room.isPublic,
+    maxPlayers: room.maxPlayers,
+    playerCount: room.players.size
+  };
 }
 
-function fail(callback, error) {
-  respond(callback, { ok: false, error });
+function publicRooms() {
+  return [...rooms.values()]
+    .filter(room => room.isPublic)
+    .map(roomSummary);
 }
 
-function ok(callback, data = {}) {
-  respond(callback, { ok: true, ...data });
+function emitRoom(room) {
+  io.to(room.code).emit('room:update', publicRoom(room, null));
+  io.emit('rooms:list:update', publicRooms());
 }
 
-function publishRoom(room) {
+function error(cb, message) {
+  if (typeof cb === 'function') cb({ ok: false, error: message });
+}
+
+function success(cb, payload) {
+  if (typeof cb === 'function') cb({ ok: true, ...payload });
+}
+
+function findRoomFor(socket) {
+  const code = socket.data.roomCode;
+  return code ? rooms.get(code) : null;
+}
+
+function isHost(socket, room) {
+  return !!room && room.hostId === socket.id;
+}
+
+function addPlayer(room, socket, name) {
+  const player = {
+    id: socket.id,
+    name: cleanName(name),
+    x: 0,
+    y: 0.02,
+    z: 3,
+    yaw: 0,
+    alive: true,
+    finished: false,
+    color: COLORS[room.players.size % COLORS.length]
+  };
+
+  room.players.set(socket.id, player);
+  socket.join(room.code);
+  socket.data.roomCode = room.code;
+
+  return player;
+}
+
+function removePlayer(socket) {
+  const room = findRoomFor(socket);
   if (!room) return;
 
-  io.to(room.code).emit("room:update", publicRoom(room));
-  publishRoomList();
-}
-
-function publishRoomList() {
-  const list = [...rooms.values()]
-    .filter(room => room.isPublic)
-    .map(room => ({
-      code: room.code,
-      game: room.game,
-      status: room.status,
-      hostName: room.players.get(room.hostId)?.name || "Игрок",
-      playerCount: room.players.size,
-      maxPlayers: MAX_PLAYERS
-    }));
-
-  io.emit("rooms:list:update", list);
-}
-
-function leaveRoom(socket) {
-  const room = getRoom(socket);
-  if (!room) {
-    socketRooms.delete(socket.id);
-    return;
-  }
-
   room.players.delete(socket.id);
-  socketRooms.delete(socket.id);
   socket.leave(room.code);
+  delete socket.data.roomCode;
 
   if (room.players.size === 0) {
     rooms.delete(room.code);
-    publishRoomList();
+    io.emit('rooms:list:update', publicRooms());
     return;
   }
 
-  if (!room.players.has(room.hostId)) {
+  // Если создатель вышел, передаём его роль другому игроку.
+  if (room.hostId === socket.id) {
     room.hostId = room.players.keys().next().value;
   }
 
-  if (room.status === "playing") {
-    room.status = "lobby";
-    for (const player of room.players.values()) {
-      player.alive = true;
-      player.finished = false;
-    }
-  }
-
-  publishRoom(room);
+  emitRoom(room);
 }
 
-function createRoom(socket, data, callback) {
-  if (getRoom(socket)) leaveRoom(socket);
-
-  const game = validGame(data?.game) ? data.game : "parkour";
-  const code = makeCode();
-
-  const room = {
-    code,
-    game,
-    isPublic: Boolean(data?.isPublic),
-    status: "lobby",
-    hostId: socket.id,
-    players: new Map()
-  };
-
-  room.players.set(socket.id, {
-    id: socket.id,
-    name: cleanName(data?.name),
-    color: "#58a6ff",
-    x: 0,
-    y: 0,
-    z: 3,
-    yaw: 0,
-    alive: true,
-    finished: false
+io.on('connection', socket => {
+  socket.on('rooms:list', cb => {
+    success(cb, { rooms: publicRooms() });
   });
 
-  rooms.set(code, room);
-  socketRooms.set(socket.id, code);
-  socket.join(code);
+  socket.on('room:create', (data = {}, cb) => {
+    if (findRoomFor(socket)) removePlayer(socket);
 
-  publishRoom(room);
-  ok(callback, {
-    code,
-    isHost: true,
-    room: publicRoom(room, socket.id)
-  });
-}
+    const game = VALID_GAMES.has(data.game)
+      ? data.game
+      : 'parkour';
 
-function joinRoom(socket, code, callback, publicOnly = false) {
-  code = String(code || "").trim().toUpperCase();
-  const room = rooms.get(code);
+    const code = makeCode();
 
-  if (!room) return fail(callback, "Комната не найдена.");
-  if (publicOnly && !room.isPublic) {
-    return fail(callback, "Эта комната не публичная.");
-  }
-  if (room.status === "playing") {
-    return fail(callback, "Игра уже началась. Выбери другую комнату.");
-  }
-  if (room.players.size >= MAX_PLAYERS) {
-    return fail(callback, "Комната заполнена.");
-  }
+    const room = {
+      code,
+      game,
+      hostId: socket.id,
+      status: 'lobby',
+      isPublic: !!data.isPublic,
+      maxPlayers: MAX_PLAYERS,
+      players: new Map()
+    };
 
-  if (getRoom(socket)) leaveRoom(socket);
+    rooms.set(code, room);
+    addPlayer(room, socket, data.name);
+    emitRoom(room);
 
-  room.players.set(socket.id, {
-    id: socket.id,
-    name: cleanName(arguments[1]?.name),
-    color: "#ffbb55",
-    x: Math.random() * 2 - 1,
-    y: 0,
-    z: 3,
-    yaw: 0,
-    alive: true,
-    finished: false
+    success(cb, {
+      code,
+      room: publicRoom(room, socket.id),
+      isHost: true
+    });
   });
 
-  socketRooms.set(socket.id, code);
-  socket.join(code);
+  function joinRoom(socket, data, cb, requirePublic) {
+    const code = cleanCode(data.code);
+    const room = rooms.get(code);
 
-  publishRoom(room);
-
-  ok(callback, {
-    code,
-    isHost: room.hostId === socket.id,
-    room: publicRoom(room, socket.id)
-  });
-}
-
-app.use(express.static(path.join(__dirname, "public")));
-
-app.get("/health", (_req, res) => {
-  res.json({ ok: true, rooms: rooms.size });
-});
-
-app.get("*", (req, res, next) => {
-  if (req.path.startsWith("/socket.io/")) return next();
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-io.on("connection", socket => {
-  socket.on("rooms:list", callback => {
-    const list = [...rooms.values()]
-      .filter(room => room.isPublic)
-      .map(room => ({
-        code: room.code,
-        game: room.game,
-        status: room.status,
-        hostName: room.players.get(room.hostId)?.name || "Игрок",
-        playerCount: room.players.size,
-        maxPlayers: MAX_PLAYERS
-      }));
-
-    ok(callback, { rooms: list });
-  });
-
-  socket.on("room:create", (data, callback) => {
-    createRoom(socket, data || {}, callback);
-  });
-
-  socket.on("room:join", (data, callback) => {
-    joinRoom(socket, data?.code, callback, false);
-  });
-
-  socket.on("room:join-public", (data, callback) => {
-    joinRoom(socket, data?.code, callback, true);
-  });
-
-  socket.on("game:select", (data, callback) => {
-    const room = getRoom(socket);
-
-    if (!room) return fail(callback, "Ты не в комнате.");
-    if (room.hostId !== socket.id) {
-      return fail(callback, "Выбирать игру может только создатель.");
+    if (!room) {
+      return error(cb, 'Комната с таким кодом не найдена.');
     }
-    if (room.status === "playing") {
-      return fail(callback, "Сначала заверши текущий раунд.");
+
+    if (requirePublic && !room.isPublic) {
+      return error(cb, 'Эта комната приватная.');
     }
-    if (!validGame(data?.game)) {
-      return fail(callback, "Неизвестная мини-игра.");
+
+    if (room.status !== 'lobby') {
+      return error(cb, 'Раунд уже идёт. Попробуй позже.');
+    }
+
+    if (room.players.size >= room.maxPlayers) {
+      return error(cb, 'Комната заполнена.');
+    }
+
+    if (findRoomFor(socket)) removePlayer(socket);
+
+    addPlayer(room, socket, data.name);
+    emitRoom(room);
+
+    success(cb, {
+      code: room.code,
+      room: publicRoom(room, socket.id),
+      isHost: room.hostId === socket.id
+    });
+  }
+
+  socket.on('room:join', (data = {}, cb) => {
+    joinRoom(socket, data, cb, false);
+  });
+
+  socket.on('room:join-public', (data = {}, cb) => {
+    joinRoom(socket, data, cb, true);
+  });
+
+  socket.on('room:settings', (data = {}, cb) => {
+    const room = findRoomFor(socket);
+
+    if (!room) return error(cb, 'Ты не находишься в комнате.');
+    if (!isHost(socket, room)) {
+      return error(cb, 'Только создатель может менять доступ.');
+    }
+
+    room.isPublic = !!data.isPublic;
+    emitRoom(room);
+
+    success(cb, {
+      room: publicRoom(room, socket.id),
+      isPublic: room.isPublic
+    });
+  });
+
+  socket.on('game:select', (data = {}, cb) => {
+    const room = findRoomFor(socket);
+
+    if (!room) return error(cb, 'Сначала войди в комнату.');
+    if (!isHost(socket, room)) {
+      return error(cb, 'Выбирать мини-игру может только создатель.');
+    }
+    if (room.status !== 'lobby') {
+      return error(cb, 'Нельзя менять игру во время раунда.');
+    }
+    if (!VALID_GAMES.has(data.game)) {
+      return error(cb, 'Неизвестная мини-игра.');
     }
 
     room.game = data.game;
-    publishRoom(room);
-    ok(callback, { game: room.game });
+    emitRoom(room);
+    success(cb, { game: room.game });
   });
 
-  socket.on("room:settings", (data, callback) => {
-    const room = getRoom(socket);
+  socket.on('game:start', (_data = {}, cb) => {
+    const room = findRoomFor(socket);
 
-    if (!room) return fail(callback, "Ты не в комнате.");
-    if (room.hostId !== socket.id) {
-      return fail(callback, "Изменять настройки может только создатель.");
+    if (!room) return error(cb, 'Сначала войди в комнату.');
+    if (!isHost(socket, room)) {
+      return error(cb, 'Начать общий раунд может только создатель.');
+    }
+    if (room.status === 'playing') {
+      return error(cb, 'Раунд уже идёт.');
+    }
+    if (room.players.size < 2) {
+      return error(cb, 'Для мультиплеера нужны минимум 2 игрока.');
     }
 
-    room.isPublic = Boolean(data?.isPublic);
-    publishRoom(room);
+    room.status = 'playing';
 
-    ok(callback, {
-      isPublic: room.isPublic,
-      room: publicRoom(room, socket.id)
-    });
-  });
-
-  socket.on("game:start", (_data, callback) => {
-    const room = getRoom(socket);
-
-    if (!room) return fail(callback, "Сначала войди в комнату.");
-    if (room.hostId !== socket.id) {
-      return fail(callback, "Начать игру может только создатель комнаты.");
-    }
-    if (!validGame(room.game)) {
-      return fail(callback, "Не выбрана мини-игра.");
+    for (const p of room.players.values()) {
+      p.x = 0;
+      p.y = 0.02;
+      p.z = 3;
+      p.yaw = 0;
+      p.alive = true;
+      p.finished = false;
     }
 
-    room.status = "playing";
-
-    for (const player of room.players.values()) {
-      player.x = 0;
-      player.y = 0;
-      player.z = 3;
-      player.yaw = 0;
-      player.alive = true;
-      player.finished = false;
-    }
-
-    publishRoom(room);
-
-    io.to(room.code).emit("game:started", {
+    emitRoom(room);
+    io.to(room.code).emit('game:started', {
       game: room.game,
-      room: publicRoom(room)
+      code: room.code
     });
 
-    ok(callback, { game: room.game });
+    success(cb, { game: room.game });
   });
 
-  socket.on("player:move", data => {
-    const room = getRoom(socket);
-    if (!room || !data || room.status !== "playing") return;
+  socket.on('player:move', data => {
+    const room = findRoomFor(socket);
+    if (!room || room.status !== 'playing' || !data) return;
 
-    const player = room.players.get(socket.id);
-    if (!player) return;
+    const p = room.players.get(socket.id);
+    if (!p) return;
 
-    const number = (value, fallback = 0) =>
-      Number.isFinite(Number(value)) ? Number(value) : fallback;
+    const num = (v, fallback = 0) =>
+      Number.isFinite(Number(v))
+        ? Math.max(-100, Math.min(100, Number(v)))
+        : fallback;
 
-    player.x = Math.max(-100, Math.min(100, number(data.x)));
-    player.y = Math.max(-20, Math.min(100, number(data.y)));
-    player.z = Math.max(-200, Math.min(100, number(data.z)));
-    player.yaw = number(data.yaw);
-    player.alive = data.alive !== false;
-    player.finished = Boolean(data.finished);
+    p.x = num(data.x, p.x);
+    p.y = num(data.y, p.y);
+    p.z = num(data.z, p.z);
+    p.yaw = num(data.yaw, p.yaw);
 
-    socket.to(room.code).volatile.emit("player:moved", publicPlayer(player));
+    if (data.alive === false) p.alive = false;
+    if (data.finished === true) p.finished = true;
+
+    socket.to(room.code).volatile.emit('player:moved', {
+      id: p.id,
+      playerId: p.id,
+      name: p.name,
+      x: p.x,
+      y: p.y,
+      z: p.z,
+      yaw: p.yaw,
+      alive: p.alive,
+      finished: p.finished,
+      color: p.color
+    });
   });
 
-  socket.on("chat:send", data => {
-    const message = String(data?.message || "").trim().slice(0, 160);
+  socket.on('chat:send', data => {
+    const room = findRoomFor(socket);
+    if (!room) return;
+
+    const message = cleanMessage(data?.message);
     if (!message) return;
 
-    const room = getRoom(socket);
-    const player = room?.players.get(socket.id);
-    const name = player?.name || cleanName(data?.name);
-
-    const payload = {
-      playerId: socket.id,
-      name,
-      message
-    };
-
-    if (room) {
-      io.to(room.code).emit("chat:message", payload);
-    } else {
-      socket.emit("chat:message", payload);
-    }
-  });
-
-  socket.on("game:event", event => {
-    const room = getRoom(socket);
-    if (!room || !event) return;
-
-    const player = room.players.get(socket.id);
-    if (!player) return;
-
-    const type = String(event.type || "");
-
-    if (type === "finished") {
-      player.finished = true;
-    } else if (type === "eliminated") {
-      player.alive = false;
-    } else if (type !== "jump") {
+    const now = Date.now();
+    if (socket.data.lastChat && now - socket.data.lastChat < 450) {
       return;
     }
+    socket.data.lastChat = now;
 
-    io.to(room.code).emit("game:event", {
-      type,
-      playerId: socket.id,
-      detail: String(event.detail || "").slice(0, 100)
+    const p = room.players.get(socket.id);
+
+    io.to(room.code).emit('chat:message', {
+      message,
+      name: p?.name || cleanName(data?.name),
+      playerId: socket.id
+    });
+  });
+
+  socket.on('game:event', event => {
+    const room = findRoomFor(socket);
+    if (!room || room.status !== 'playing' || !event) return;
+
+    const p = room.players.get(socket.id);
+    if (!p) return;
+
+    if (event.type === 'finished') p.finished = true;
+    else if (event.type === 'eliminated') p.alive = false;
+    else return;
+
+    // Выбытие или финиш одного игрока не перезапускает остальных.
+    io.to(room.code).emit('game:event', {
+      type: event.type,
+      detail: cleanMessage(event.detail),
+      playerId: socket.id
     });
 
-    publishRoom(room);
+    emitRoom(room);
   });
 
-  socket.on("disconnect", () => {
-    leaveRoom(socket);
-  });
+  socket.on('disconnect', () => removePlayer(socket));
 });
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`AI WORLD server listening on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`AI WORLD server listening on ${PORT}`);
 });
