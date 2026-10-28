@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -158,6 +157,7 @@ let started=false,alive=true,finished=false,localGame=true,hubMode=false;
 let velocityY=0,onGround=true,yaw=0;
 let keys={forward:false,back:false,left:false,right:false};
 let lastSend=0,redTimer=0,greenLight=true;
+let redPhaseDuration=2+Math.random()*3;
 let toastTimeout=null,animationStarted=false;
 let lookPointers=new Map();
 
@@ -441,7 +441,6 @@ function startLocal(withBots){
  }
 }
 
-/* Возврат на главную карту AI WORLD. */
 function returnToWorld(){
  resetKeys();
  velocityY=0;
@@ -457,17 +456,6 @@ function returnToWorld(){
 $("world").onclick=returnToWorld;
 $("again").onclick=returnToWorld;
 
-/*
- * ИСПРАВЛЕНИЕ КНОПКИ «ЗАНОВО»
- *
- * В одиночной игре и режиме ботов создаётся новый локальный раунд.
- * В мультиплеере создатель комнаты отправляет серверу game:start.
- * Сервер сообщает всем игрокам о начале раунда, после чего каждый
- * клиент вызывает startGame и перестраивает игровой мир.
- *
- * Игрок, который не является создателем комнаты, не может
- * перезапустить общий раунд самостоятельно.
- */
 $("retry").onclick=()=>{
  resetKeys();
  velocityY=0;
@@ -705,7 +693,6 @@ function clearWorld(){
  bots=[];
 }
 
-/* Главная карта-хаб: площадка и цветные порталы. */
 function buildHubWorld(){
  if(!scene)return;
 
@@ -812,7 +799,16 @@ function buildWorld(game){
 
    addBox(0,.05,z,7,.5,2.7,0x7c91b1,true);
 
-   const bar=addBox(i%2?1.4:-1.4,1.15,z,1.3,1.7,.65,0xf16b7d,false);
+   // Широкие барьеры перекрывают большую часть дорожки.
+   // Игроку нужно менять сторону на каждом следующем барьере.
+   const safeSide=i%2===0?1:-1;
+   const barX=-safeSide*1.35;
+
+   const bar=addBox(
+    barX,1.15,z,
+    4.2,1.7,.65,
+    0xf16b7d,false
+   );
 
    hazards.push({type:"bar",mesh:bar,z});
   }
@@ -826,6 +822,7 @@ function buildWorld(game){
  alive=true;
  finished=false;
  redTimer=0;
+ redPhaseDuration=2+Math.random()*3;
  greenLight=true;
  player.rotation.y=yaw+Math.PI;
 }
@@ -1057,9 +1054,11 @@ function animate(){
    if(!hubMode&&chosen==="redlight"){
     redTimer+=dt;
 
-    if(redTimer>3.5){
+    // Случайная длительность каждого сигнала вместо строгих 3,5 секунды.
+    if(redTimer>=redPhaseDuration){
      redTimer=0;
      greenLight=!greenLight;
+     redPhaseDuration=2+Math.random()*3;
 
      toast(greenLight?"🟢 ЗЕЛЁНЫЙ — БЕГИ!":"🔴 КРАСНЫЙ — СТОЙ!");
     }
@@ -1151,13 +1150,19 @@ function animate(){
     }
    }
 
+   // Проверка столкновения с барьерами по их реальным размерам.
    if(!hubMode&&chosen==="obstacles"){
     for(const h of hazards){
-     if(
-      Math.abs(player.position.z-h.z)<.45&&
-      Math.abs(player.position.x-h.mesh.position.x)<.85&&
-      player.position.y<1.8
-     ){
+     if(h.type!=="bar"||!h.mesh.visible)continue;
+
+     const bar=h.mesh;
+     const halfW=bar.geometry.parameters.width/2;
+     const halfD=bar.geometry.parameters.depth/2;
+
+     const hitX=Math.abs(player.position.x-bar.position.x)<halfW+.28;
+     const hitZ=Math.abs(player.position.z-bar.position.z)<halfD+.28;
+
+     if(hitX&&hitZ&&player.position.y<2.0){
       finishRound(false,"столкновение с препятствием");
       break;
      }
